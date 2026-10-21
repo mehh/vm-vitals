@@ -14,3 +14,4 @@ web/tsconfig.tsbuildinfo
 run.log
 .DS_Store
 *.log
+web/AGENTS.md

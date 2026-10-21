@@ -1,2 +1,5 @@
 started
 agent: Go daemon builds for darwin/linux (amd64+arm64), collects cpu/mem/disk/load/swap/procs/oom/tools/jobs, pairs and reports; unit tests pass
+web: Next.js 16 app with pair/ingest/machines/incidents/claim APIs, PGlite fallback, dashboard, charts, alerts, share page + OG card, magic-link claim; typecheck + build pass
+e2e: smoke test 30/30 pass; real Go agent paired and reported from this Mac via sandboxed HOME; home/share/OG screenshots reviewed
+docs: README (install, bot snippet, deploy vars, demo GIF plan) and result.md written
