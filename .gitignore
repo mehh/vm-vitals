@@ -1,0 +1,16 @@
+# agent
+agent/dist/
+agent/vm-vitals
+# web
+web/node_modules/
+web/.next/
+web/.data/
+web/.env
+web/.env.local
+web/public/dl/vm-vitals-*
+web/next-env.d.ts
+web/tsconfig.tsbuildinfo
+# misc
+run.log
+.DS_Store
+*.log

@@ -1,0 +1,2 @@
+started
+agent: Go daemon builds for darwin/linux (amd64+arm64), collects cpu/mem/disk/load/swap/procs/oom/tools/jobs, pairs and reports; unit tests pass
