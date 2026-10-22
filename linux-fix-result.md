@@ -28,8 +28,10 @@ When `systemctl --user` can't reach systemd (no `XDG_RUNTIME_DIR`, no D-Bus, or 
 - Release v0.2.1 on mehh/vm-vitals has all four binaries. `https://vm-vitals.vercel.app/dl/vm-vitals-linux-amd64` redirects to the v0.2.1 asset, and the downloaded file is an x86-64 ELF that reports v0.2.1.
 - The production Vercel deploy is Ready, and RELEASE_BASE_URL was updated for v0.2.1.
 - `BASE=https://vm-vitals.vercel.app node scripts/smoke.mjs` ran against prod and every check passed, including "ingest null lists accepted" and "ingest unknown fields accepted". The smoke machine was deleted at the end.
+- Replayed the exact payload a v0.2.0 Linux agent sends from an overlay-root box (`"disks":null`, `"top_procs":null`, `"tools":null`, `"jobs":null`, no `net`) against prod on a freshly paired machine. Ingest answered 200 `{"ok":true}`, the dashboard API showed health ok with an empty disks list, and the machine was deleted afterwards. So a Grok Bot box still on v0.2.0 starts reporting as soon as the deploy is live, before anyone reinstalls.
+- Vercel Sandbox was tried first for the Linux run and the API returned 403 for this account, which is why the check lives in GitHub Actions.
 
 ## Leftovers
 
-- The CI install run left a paired machine `m_xmkykuc8ys` (gh-runner-linux-test) on prod. Its agent is gone, so it will just show as offline. Delete it if it bothers you.
+- The CI install run paired `m_xmkykuc8ys` (gh-runner-linux-test) on prod; it was deleted after the run, so nothing is left behind. Later manual runs of the workflow with a pair token will each leave one machine to delete.
 - To fix the Grok Bot box, re-run the install command. It pulls v0.2.1 and falls back to the background runner on its own.
