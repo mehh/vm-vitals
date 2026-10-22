@@ -153,7 +153,7 @@ func launchdPlist(o InstallOpts) string {
   <key>StandardErrorPath</key><string>%s/agent.log</string>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:%s</string>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:%s</string>
   </dict>
 </dict>
 </plist>

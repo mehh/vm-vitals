@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -24,7 +25,31 @@ type Collector struct {
 
 const toolCacheTTL = 10 * time.Minute
 
+// systemDirs are where ps, sysctl, netstat and friends live. Service
+// managers often start us with a short PATH (launchd agents installed by
+// v0.3.0 and older had no /usr/sbin, so sysctl and netstat went missing).
+var systemDirs = []string{"/usr/bin", "/bin", "/usr/sbin", "/sbin"}
+
+// withSystemDirs appends any missing system directories to a PATH value.
+func withSystemDirs(path string) string {
+	have := map[string]bool{}
+	for _, d := range filepath.SplitList(path) {
+		have[d] = true
+	}
+	for _, d := range systemDirs {
+		if !have[d] {
+			if path != "" {
+				path += string(os.PathListSeparator)
+			}
+			path += d
+		}
+	}
+	return path
+}
+
 func New(version string) *Collector {
+	// exec.Command resolves binaries against our own PATH, so fix it here.
+	_ = os.Setenv("PATH", withSystemDirs(os.Getenv("PATH")))
 	return &Collector{AgentVersion: version}
 }
 

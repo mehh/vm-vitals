@@ -139,3 +139,17 @@ func TestNormalizeKeepsExistingLists(t *testing.T) {
 		t.Errorf("%+v", r)
 	}
 }
+
+func TestWithSystemDirs(t *testing.T) {
+	got := withSystemDirs("/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/Users/you/.local/bin")
+	want := "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/Users/you/.local/bin:/usr/sbin:/sbin"
+	if got != want {
+		t.Errorf("got %q want %q", got, want)
+	}
+	if withSystemDirs(want) != want {
+		t.Error("must not duplicate dirs that are already there")
+	}
+	if withSystemDirs("") != "/usr/bin:/bin:/usr/sbin:/sbin" {
+		t.Errorf("empty PATH: %q", withSystemDirs(""))
+	}
+}

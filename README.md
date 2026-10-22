@@ -134,7 +134,7 @@ Check on it with `systemctl --user status vm-vitals` and `journalctl --user -u v
   <key>StandardErrorPath</key><string>/Users/you/Library/Logs/vm-vitals/agent.log</string>
   <key>EnvironmentVariables</key>
   <dict>
-    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/Users/you/.local/bin</string>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Users/you/.local/bin</string>
   </dict>
 </dict>
 </plist>
@@ -189,7 +189,7 @@ The web app is a stock Next.js 16 app. Vercel plus Neon is what runs the hosted 
 | `RESEND_API_KEY` | Optional. Sends magic-link emails. Unset means the link goes to the server log |
 | `EMAIL_FROM` | Optional. Sender for magic links |
 
-Build release binaries with `VERSION=v0.3.0 ./agent/build.sh` and upload the four files to a GitHub release.
+Build release binaries with `VERSION=v0.3.1 ./agent/build.sh` and upload the four files to a GitHub release.
 
 ## Alerts
 

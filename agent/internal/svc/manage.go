@@ -43,33 +43,41 @@ func Uninstall(p Paths) ([]string, error) {
 		if !IsRoot() {
 			ctl = append(ctl, "--user")
 		}
-		if _, err := exec.LookPath("systemctl"); err == nil {
-			if exec.Command(ctl[0], append(ctl[1:], "disable", "--now", unit)...).Run() == nil {
-				note("stopped and disabled %s", unit)
+		// Only touch systemd if our unit file is there; the unit name alone
+		// isn't proof the service is ours.
+		if _, err := os.Stat(ServiceFile()); err == nil {
+			if _, err := exec.LookPath("systemctl"); err == nil {
+				if exec.Command(ctl[0], append(ctl[1:], "disable", "--now", unit)...).Run() == nil {
+					note("stopped and disabled %s", unit)
+				}
 			}
-		}
-		if removed(ServiceFile()) {
-			note("removed %s", ServiceFile())
-			_ = exec.Command(ctl[0], append(ctl[1:], "daemon-reload")...).Run()
+			if removed(ServiceFile()) {
+				note("removed %s", ServiceFile())
+				_ = exec.Command(ctl[0], append(ctl[1:], "daemon-reload")...).Run()
+			}
 		}
 		if pid := fallbackPID(p.LogDir); pid > 0 {
 			stopFallback(p.LogDir)
 			note("stopped background agent (pid %d)", pid)
 		}
-		if cur, err := readCrontab(); err == nil && strings.Contains(cur, cronTag) {
+		if cur, err := readCrontab(); err == nil && strings.Contains(cur, p.ConfigFile+" ") && strings.Contains(cur, cronTag) {
 			if err := removeCron(); err == nil {
 				note("removed the @reboot line from crontab")
 			}
 		}
 	case "darwin":
+		// launchctl addresses jobs by label, so only boot one out when our
+		// plist is on disk. /uninstall.sh sweeps by label regardless.
 		plist := launchdPlistPath()
-		if exec.Command("launchctl", "bootout", launchdDomain()+"/"+launchLabel).Run() == nil {
-			note("stopped launchd job %s", launchLabel)
-		} else {
-			_ = exec.Command("launchctl", "unload", plist).Run()
-		}
-		if removed(plist) {
-			note("removed %s", plist)
+		if _, err := os.Stat(plist); err == nil {
+			if exec.Command("launchctl", "bootout", launchdDomain()+"/"+launchLabel).Run() == nil {
+				note("stopped launchd job %s", launchLabel)
+			} else {
+				_ = exec.Command("launchctl", "unload", plist).Run()
+			}
+			if removed(plist) {
+				note("removed %s", plist)
+			}
 		}
 	}
 
@@ -175,10 +183,15 @@ func GetStatus(p Paths) Status {
 // launchdState pulls "state = running" and the pid out of `launchctl print`.
 func launchdState(out string) string {
 	var parts []string
+	seen := map[string]bool{}
 	for _, l := range strings.Split(out, "\n") {
 		l = strings.TrimSpace(l)
-		if strings.HasPrefix(l, "state = ") || strings.HasPrefix(l, "pid = ") {
-			parts = append(parts, l)
+		for _, k := range []string{"state = ", "pid = "} {
+			// Nested sections repeat "state = active"; the job's own line comes first.
+			if strings.HasPrefix(l, k) && !seen[k] {
+				seen[k] = true
+				parts = append(parts, l)
+			}
 		}
 	}
 	if len(parts) == 0 {

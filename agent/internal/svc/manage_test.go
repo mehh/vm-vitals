@@ -44,3 +44,10 @@ func TestUninstallRemovesEverythingAndIsRepeatable(t *testing.T) {
 		t.Errorf("second run should be a no-op, got %v, %v", again, err)
 	}
 }
+
+func TestLaunchdStateKeepsFirstOfEach(t *testing.T) {
+	out := "gui/501/com.vmvitals.agent = {\n\tactive count = 1\n\tstate = running\n\tpid = 55968\n\tendpoint = {\n\t\tstate = active\n\t}\n\tstate = active\n}"
+	if got := launchdState(out); got != "state = running, pid = 55968" {
+		t.Errorf("got %q", got)
+	}
+}
