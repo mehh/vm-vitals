@@ -1,0 +1,8 @@
+started 2026-10-22T01:17:57Z
+preflight: gh logged in as mehh (user account), vercel logged in as mehh, go 1.26.1, pnpm 10.33
+repo: created https://github.com/mehh/vm-vitals (private), pushed main; binaries built v0.1.0
+release: repo made public; v0.1.0 release published with 4 binaries; unauthenticated download returns 200
+db: Neon resource vm-vitals-db provisioned via Vercel Marketplace and connected to project vm-vitals
+vercel: project vm-vitals linked; first prod deploy ready at https://vm-vitals.vercel.app; env set: DATABASE_URL (Neon), RELEASE_BASE_URL, NEXT_PUBLIC_APP_URL; redeploying to bake NEXT_PUBLIC_APP_URL
+smoke: homepage 200, /install.sh 200 with https://vm-vitals.vercel.app baked in, /dl/vm-vitals-darwin-arm64 serves v0.1.0 binary, real agent paired (install --no-service, sandboxed HOME) and server saw reports within 8s; no launchd service installed; sandbox removed
+finished 2026-10-22T01:23:32Z: live at https://vm-vitals.vercel.app, no blockers; details in deploy-result.md
