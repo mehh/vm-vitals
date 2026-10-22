@@ -44,3 +44,54 @@ other`)
 		t.Errorf("%v", out)
 	}
 }
+
+// An overlay-root container, like the Grok Bot box. Before the fix every
+// mount was filtered and disks came out as JSON null.
+func TestDiskMountsKeepsOverlayRoot(t *testing.T) {
+	mounts := `overlay / overlay rw,relatime,lowerdir=/x,upperdir=/y,workdir=/z 0 0
+proc /proc proc rw,nosuid,nodev,noexec,relatime 0 0
+tmpfs /dev tmpfs rw,nosuid,size=65536k,mode=755 0 0
+sysfs /sys sysfs ro,nosuid,nodev,noexec,relatime 0 0
+cgroup /sys/fs/cgroup cgroup2 ro,nosuid,nodev,noexec,relatime 0 0
+/dev/sda1 /etc/hosts ext4 rw,relatime 0 0
+/dev/sda1 /data ext4 rw,relatime 0 0
+`
+	got := diskMounts(mounts)
+	if len(got) != 2 {
+		t.Fatalf("want 2 mounts got %d: %+v", len(got), got)
+	}
+	if got[0].mount != "/" || got[0].fstype != "overlay" {
+		t.Errorf("root should be kept: %+v", got[0])
+	}
+	if got[1].mount != "/etc/hosts" {
+		t.Errorf("first ext4 mount of sda1 wins: %+v", got[1])
+	}
+}
+
+func TestDiskMountsRootfsRoot(t *testing.T) {
+	got := diskMounts("rootfs / rootfs rw 0 0\n/dev/root / ext4 rw 0 0\n")
+	if len(got) != 1 || got[0].mount != "/" || got[0].fstype != "rootfs" {
+		t.Errorf("%+v", got)
+	}
+}
+
+func TestDiskMountsNormalVM(t *testing.T) {
+	mounts := `sysfs /sys sysfs rw 0 0
+/dev/vda1 / ext4 rw,relatime 0 0
+/dev/vda15 /boot/efi vfat rw 0 0
+tmpfs /run tmpfs rw 0 0
+/dev/loop0 /snap/core/1 squashfs ro 0 0
+/dev/vdb /mnt/data xfs rw 0 0
+`
+	got := diskMounts(mounts)
+	if len(got) != 2 || got[0].mount != "/" || got[1].mount != "/mnt/data" {
+		t.Errorf("%+v", got)
+	}
+}
+
+func TestDisksNeverNil(t *testing.T) {
+	d, _ := disks()
+	if d == nil {
+		t.Fatal("disks() returned a nil slice")
+	}
+}

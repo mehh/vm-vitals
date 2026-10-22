@@ -3,7 +3,6 @@
 package collect
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"os"
@@ -174,21 +173,31 @@ var skipFS = map[string]bool{
 	"nsfs": true, "ramfs": true, "rpc_pipefs": true, "fuse.snapfuse": true, "fuse.lxcfs": true,
 }
 
-func disks() ([]Disk, error) {
-	f, err := os.Open("/proc/mounts")
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	var out []Disk
+// mountEntry is one line of /proc/mounts.
+type mountEntry struct {
+	dev, mount, fstype string
+}
+
+// diskMounts picks the mounts worth reporting out of /proc/mounts text.
+// Pseudo filesystems are dropped, except that the root mount is always
+// kept: containers and some cloud images have an overlay or "rootfs" root
+// and we still want a disk gauge for them.
+func diskMounts(procMounts string) []mountEntry {
+	var out []mountEntry
 	seen := map[string]bool{}
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		fields := strings.Fields(sc.Text())
+	for _, line := range strings.Split(procMounts, "\n") {
+		fields := strings.Fields(line)
 		if len(fields) < 3 {
 			continue
 		}
 		dev, mount, fstype := fields[0], fields[1], fields[2]
+		if mount == "/" {
+			if !seen["/"] {
+				out = append(out, mountEntry{dev, mount, fstype})
+				seen["/"] = true
+			}
+			continue
+		}
 		if skipFS[fstype] || strings.HasPrefix(mount, "/snap/") || strings.HasPrefix(mount, "/boot/efi") {
 			continue
 		}
@@ -198,8 +207,32 @@ func disks() ([]Disk, error) {
 		if seen[dev] && fstype != "zfs" {
 			continue
 		}
+		seen[dev] = true
+		out = append(out, mountEntry{dev, mount, fstype})
+	}
+	return out
+}
+
+func disks() ([]Disk, error) {
+	out := []Disk{}
+	b, err := os.ReadFile("/proc/mounts")
+	var entries []mountEntry
+	if err == nil {
+		entries = diskMounts(string(b))
+	}
+	hasRoot := false
+	for _, e := range entries {
+		if e.mount == "/" {
+			hasRoot = true
+		}
+	}
+	if !hasRoot {
+		// /proc/mounts unreadable or odd: still measure the root filesystem.
+		entries = append([]mountEntry{{"", "/", ""}}, entries...)
+	}
+	for _, e := range entries {
 		var st syscall.Statfs_t
-		if err := syscall.Statfs(mount, &st); err != nil {
+		if err := syscall.Statfs(e.mount, &st); err != nil {
 			continue
 		}
 		total := st.Blocks * uint64(st.Bsize)
@@ -207,9 +240,11 @@ func disks() ([]Disk, error) {
 		if total == 0 {
 			continue
 		}
-		seen[dev] = true
 		used := total - free
-		out = append(out, Disk{Mount: mount, FS: fstype, TotalB: total, UsedB: used, Pct: pct(used, total)})
+		out = append(out, Disk{Mount: e.mount, FS: e.fstype, TotalB: total, UsedB: used, Pct: pct(used, total)})
+	}
+	if len(out) == 0 && err != nil {
+		return out, err
 	}
 	return out, nil
 }

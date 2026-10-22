@@ -108,6 +108,15 @@ async function main() {
   check("ingest #1", r.ok && (await r.json()).ok === true);
   r = await call("/api/ingest", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer mvt_bad" }, body: "{}" }, false);
   check("ingest bad token 401", r.status === 401);
+  // Linux agent on an overlay-root box: Go nil slices arrive as null.
+  r = await ingest(report({ disks: null, top_procs: null, tools: null, jobs: null, net: undefined }));
+  check("ingest null lists accepted", r.ok && (await r.json()).ok === true);
+  r = await ingest(report({ gpu: { pct: 1 }, extra: "field" }));
+  check("ingest unknown fields accepted", r.ok);
+  r = await ingest([1, 2, 3]);
+  check("ingest non-object 400 malformed", r.status === 400 && (await r.json()).error === "malformed report");
+  r = await ingest(report());
+  check("ingest #2 (restore full report)", r.ok);
 
   // poll after pairing
   r = await call(`/api/pair-tokens/${minted.token}`);

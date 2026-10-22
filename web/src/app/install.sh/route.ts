@@ -58,7 +58,7 @@ echo
 echo "Done. See exactly what gets reported with:  vm-vitals once"
 case "$OS" in
   darwin) echo "Logs: ~/Library/Logs/vm-vitals/agent.log   Remove: vm-vitals uninstall" ;;
-  linux)  if [ "$(id -u)" = 0 ]; then echo "Logs: journalctl -u vm-vitals -f   Remove: vm-vitals uninstall"; else echo "Logs: journalctl --user -u vm-vitals -f   Remove: vm-vitals uninstall"; fi ;;
+  linux)  if [ "$(id -u)" = 0 ]; then echo "Logs: journalctl -u vm-vitals -f (or /var/log/vm-vitals/agent.log without systemd)   Remove: vm-vitals uninstall"; else echo "Logs: journalctl --user -u vm-vitals -f (or ~/.local/state/vm-vitals/agent.log without systemd)   Remove: vm-vitals uninstall"; fi ;;
 esac
 `;
   return new Response(script, {

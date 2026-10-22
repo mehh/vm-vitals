@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { q, one } from "@/lib/db";
 import { sha256 } from "@/lib/ids";
 import { evaluateAlerts } from "@/lib/alerts";
+import { parseReport } from "@/lib/report";
 import type { Report } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -21,17 +22,19 @@ export async function POST(req: Request) {
 
   const raw = await req.text();
   if (raw.length > MAX_BODY) return NextResponse.json({ error: "report too large" }, { status: 413 });
-  let report: Report;
+  let body: unknown;
   try {
-    report = JSON.parse(raw);
+    body = JSON.parse(raw);
   } catch {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
-  if (!report || report.v !== 1 || !report.cpu || !report.mem || !Array.isArray(report.disks)) {
+  // Lenient on purpose: null lists, missing optionals and unknown fields are
+  // all fine. Only a non-object body is malformed.
+  const report = parseReport(body);
+  if (!report) {
     return NextResponse.json({ error: "malformed report" }, { status: 400 });
   }
 
-  report = sanitize(report);
   const at = new Date(report.at ?? Date.now());
   const safeAt = isNaN(at.getTime()) ? new Date() : at;
   const rootDisk = report.disks.find((d) => d.mount === "/") ?? report.disks[0];
@@ -72,56 +75,4 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ ok: true, interval_s: 30, alerts_opened: opened.length });
-}
-
-/** Clamp list sizes and string lengths; the agent is trusted-ish, the network isn't. */
-function sanitize(r: Report): Report {
-  const str = (s: unknown, n: number) => (typeof s === "string" ? s.slice(0, n) : "");
-  const num = (x: unknown) => (typeof x === "number" && isFinite(x) ? x : 0);
-  return {
-    v: 1,
-    at: str(r.at, 40),
-    hostname: str(r.hostname, 120),
-    os: str(r.os, 20),
-    arch: str(r.arch, 20),
-    kernel: str(r.kernel, 80),
-    uptime_s: num(r.uptime_s),
-    agent_version: str(r.agent_version, 40),
-    cpu: { pct: num(r.cpu?.pct), cores: num(r.cpu?.cores) },
-    load: { l1: num(r.load?.l1), l5: num(r.load?.l5), l15: num(r.load?.l15) },
-    mem: { total_b: num(r.mem?.total_b), used_b: num(r.mem?.used_b), avail_b: num(r.mem?.avail_b), pct: num(r.mem?.pct) },
-    swap: { total_b: num(r.swap?.total_b), used_b: num(r.swap?.used_b), pct: num(r.swap?.pct) },
-    disks: (r.disks ?? []).slice(0, 16).map((d) => ({
-      mount: str(d.mount, 120),
-      fs: str(d.fs, 20),
-      total_b: num(d.total_b),
-      used_b: num(d.used_b),
-      pct: num(d.pct),
-    })),
-    top_procs: (r.top_procs ?? []).slice(0, 12).map((p) => ({
-      pid: num(p.pid),
-      name: str(p.name, 60),
-      cpu_pct: num(p.cpu_pct),
-      mem_pct: num(p.mem_pct),
-      rss_b: num(p.rss_b),
-    })),
-    oom: {
-      supported: !!r.oom?.supported,
-      kills_total: num(r.oom?.kills_total),
-      recent: (r.oom?.recent ?? []).slice(0, 5).map((s) => str(s, 120)),
-    },
-    tools: (r.tools ?? []).slice(0, 48).map((t) => ({ name: str(t.name, 40), path: str(t.path, 200), version: str(t.version, 80) })),
-    jobs: (r.jobs ?? []).slice(0, 32).map((j) => ({
-      name: str(j.name, 40),
-      kind: str(j.kind, 40),
-      pid: num(j.pid),
-      cpu_pct: num(j.cpu_pct),
-      rss_b: num(j.rss_b),
-      elapsed_s: num(j.elapsed_s),
-    })),
-    ...(r.net && typeof r.net === "object"
-      ? { net: { rx_bps: num(r.net.rx_bps), tx_bps: num(r.net.tx_bps), rx_total_b: num(r.net.rx_total_b), tx_total_b: num(r.net.tx_total_b) } }
-      : {}),
-    warnings: (r.warnings ?? []).slice(0, 10).map((w) => str(w, 200)),
-  };
 }

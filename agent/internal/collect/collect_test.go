@@ -1,6 +1,10 @@
 package collect
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func TestParsePS(t *testing.T) {
 	out := `
@@ -102,5 +106,36 @@ func TestTopProcsOrder(t *testing.T) {
 	top := topProcs(procs, 10)
 	if len(top) != 3 || top[0].Name != "b" || top[1].Name != "a" || top[2].Name != "d" {
 		t.Errorf("got %+v", top)
+	}
+}
+
+// Regression: a Linux box with an overlay root produced "disks": null and
+// the server answered "malformed report" on every tick.
+func TestReportListsAreNeverNull(t *testing.T) {
+	r := &Report{V: 1}
+	r.normalize()
+	b, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := string(b)
+	for _, key := range []string{"disks", "top_procs", "tools", "jobs"} {
+		if strings.Contains(js, `"`+key+`":null`) {
+			t.Errorf("%s marshals as null: %s", key, js)
+		}
+		if !strings.Contains(js, `"`+key+`":[]`) {
+			t.Errorf("%s should be an empty array: %s", key, js)
+		}
+	}
+	if strings.Contains(js, `"net":`) {
+		t.Errorf("net should be omitted when nil: %s", js)
+	}
+}
+
+func TestNormalizeKeepsExistingLists(t *testing.T) {
+	r := &Report{Disks: []Disk{{Mount: "/"}}, Jobs: []Job{{Name: "claude"}}}
+	r.normalize()
+	if len(r.Disks) != 1 || len(r.Jobs) != 1 || len(r.Top) != 0 || len(r.Tools) != 0 {
+		t.Errorf("%+v", r)
 	}
 }

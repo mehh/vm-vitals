@@ -16,8 +16,10 @@ const (
 )
 
 // InstallService writes a systemd unit (Linux) or a launchd plist (macOS)
-// pointing at binPath and starts it. DryRunDir, when set, writes the unit
-// file there instead and does not touch the service manager (used in tests).
+// pointing at binPath and starts it. On Linux without a usable systemd (no
+// user bus, containers) it falls back to a detached process plus a cron
+// @reboot line. DryRunDir, when set, writes the unit file there instead and
+// does not touch the service manager (used in tests).
 type InstallOpts struct {
 	BinPath    string
 	ConfigFile string
@@ -40,13 +42,22 @@ func UninstallService() error {
 	switch runtime.GOOS {
 	case "linux":
 		unit := serviceName + ".service"
+		var unitPath string
 		if IsRoot() {
 			_ = exec.Command("systemctl", "disable", "--now", unit).Run()
-			return os.Remove(filepath.Join("/etc/systemd/system", unit))
+			unitPath = filepath.Join("/etc/systemd/system", unit)
+		} else {
+			_ = exec.Command("systemctl", "--user", "disable", "--now", unit).Run()
+			home, _ := os.UserHomeDir()
+			unitPath = filepath.Join(home, ".config/systemd/user", unit)
 		}
-		_ = exec.Command("systemctl", "--user", "disable", "--now", unit).Run()
-		home, _ := os.UserHomeDir()
-		return os.Remove(filepath.Join(home, ".config/systemd/user", unit))
+		// The fallback runner may be in use instead of (or as well as) systemd.
+		stopFallback(ResolvePaths().LogDir)
+		_ = removeCron()
+		if err := os.Remove(unitPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
 	case "darwin":
 		plist := launchdPlistPath()
 		_ = exec.Command("launchctl", "bootout", launchdDomain(), plist).Run()
@@ -89,6 +100,11 @@ func installSystemd(o InstallOpts) (string, error) {
 		p := filepath.Join(o.DryRunDir, serviceName+".service")
 		return p, os.WriteFile(p, []byte(unit), 0o644)
 	}
+	if !systemdAvailable() {
+		// No systemd to talk to (container, or a user session with no D-Bus
+		// / XDG_RUNTIME_DIR). Don't fail the install; supervise it ourselves.
+		return installFallback(o)
+	}
 	var dir string
 	var ctl []string
 	if IsRoot() {
@@ -106,9 +122,6 @@ func installSystemd(o InstallOpts) (string, error) {
 	if err := os.WriteFile(p, []byte(unit), 0o644); err != nil {
 		return "", err
 	}
-	if _, err := exec.LookPath("systemctl"); err != nil {
-		return p, fmt.Errorf("systemctl not found; unit written to %s but not started. Start `%s run --config %s` yourself", p, o.BinPath, o.ConfigFile)
-	}
 	steps := [][]string{
 		append(append([]string{}, ctl...), "daemon-reload"),
 		append(append([]string{}, ctl...), "enable", "--now", serviceName+".service"),
@@ -116,7 +129,14 @@ func installSystemd(o InstallOpts) (string, error) {
 	}
 	for _, s := range steps {
 		if out, err := exec.Command(s[0], s[1:]...).CombinedOutput(); err != nil {
-			return p, fmt.Errorf("%s: %v: %s", strings.Join(s, " "), err, strings.TrimSpace(string(out)))
+			// systemd looked usable but isn't (bus went away, policy denies).
+			// Same answer: run it ourselves rather than leave the box silent.
+			_ = os.Remove(p)
+			how, ferr := installFallback(o)
+			if ferr != nil {
+				return p, fmt.Errorf("%s: %v: %s; fallback: %v", strings.Join(s, " "), err, strings.TrimSpace(string(out)), ferr)
+			}
+			return how + fmt.Sprintf(" (systemd unavailable: %s)", strings.TrimSpace(string(out))), nil
 		}
 	}
 	if !IsRoot() {

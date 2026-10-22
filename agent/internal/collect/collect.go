@@ -86,7 +86,27 @@ func (c *Collector) Collect(ctx context.Context) *Report {
 	}
 	r.Tools = c.toolCache
 
+	r.normalize()
 	return r
+}
+
+// normalize makes sure every list field is a real (possibly empty) array.
+// A nil slice marshals to JSON null, and the server rejects null for
+// "disks" with "malformed report". Seen on Linux boxes whose root mount is
+// overlay (containers, some cloud images), where no disk made the cut.
+func (r *Report) normalize() {
+	if r.Disks == nil {
+		r.Disks = []Disk{}
+	}
+	if r.Top == nil {
+		r.Top = []Proc{}
+	}
+	if r.Tools == nil {
+		r.Tools = []Tool{}
+	}
+	if r.Jobs == nil {
+		r.Jobs = []Job{}
+	}
 }
 
 // run executes a command with a timeout and returns trimmed stdout.
