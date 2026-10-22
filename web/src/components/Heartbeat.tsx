@@ -21,11 +21,10 @@ export function Heartbeat({ bpm = 70, color = "var(--good)", height = 44, classN
                 transform={`translate(${c * W + b * 70} 0)`}
                 fill="none"
                 stroke={color}
-                strokeWidth={2}
+                strokeWidth={1.75}
                 strokeLinejoin="round"
                 strokeLinecap="round"
                 vectorEffect="non-scaling-stroke"
-                style={{ filter: `drop-shadow(0 0 4px ${color})` }}
               />
             )),
           )}

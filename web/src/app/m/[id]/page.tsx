@@ -7,6 +7,7 @@ import { OFFLINE_AFTER_MS, type Alert, type Machine } from "@/lib/types";
 import { appUrl, healthOf } from "@/lib/format";
 import { publicMachine } from "@/lib/machines";
 import { Dashboard } from "@/components/Dashboard";
+import { Critter } from "@/components/Critters";
 
 export const dynamic = "force-dynamic";
 
@@ -23,16 +24,17 @@ export default async function MachinePage({ params }: { params: Promise<{ id: st
   const viewer = await getViewer();
   if (!canManage(m, viewer)) {
     return (
-      <div className="mx-auto max-w-lg space-y-4 py-12 text-center">
-        <h1 className="text-2xl font-semibold">This machine belongs to another browser</h1>
-        <p className="text-secondary">
+      <div className="wrap flex max-w-xl flex-col items-center space-y-4 py-24 text-center">
+        <Critter kind="grok" id="other" expr="curious" size={120} />
+        <h1 className="display text-4xl">not your bot.</h1>
+        <p className="text-sm text-fg-2">
           Machines are private to the browser that paired them. If this is yours, open it where you ran the install, or
           claim it by email there and sign in here.
         </p>
         {m.share_public && m.share_slug && (
           <p className="text-sm">
             Its owner made a public page:{" "}
-            <Link className="underline" href={`/s/${m.share_slug}`}>
+            <Link className="link" href={`/s/${m.share_slug}`}>
               view it
             </Link>
           </p>

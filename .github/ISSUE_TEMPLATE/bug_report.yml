@@ -1,0 +1,62 @@
+name: Bug report
+description: Something broke, on the agent or the site.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing this. If it's a security problem, please use private reporting instead (see SECURITY.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did and what you saw. Error messages and log lines help.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: input
+    id: os-arch
+    attributes:
+      label: OS and arch
+      placeholder: "Ubuntu 24.04 arm64, macOS 15 on an M2"
+    validations:
+      required: true
+  - type: input
+    id: agent-version
+    attributes:
+      label: Agent version
+      description: Output of `vm-vitals version`.
+      placeholder: "vm-vitals v0.3.0 linux/amd64"
+  - type: dropdown
+    id: install-user
+    attributes:
+      label: Installed as
+      options:
+        - Regular user
+        - Root (with sudo)
+        - Not installed yet
+        - Not sure
+  - type: dropdown
+    id: install-service
+    attributes:
+      label: Service type
+      description: The install output says which one you got.
+      options:
+        - systemd system service
+        - systemd user service
+        - launchd (macOS)
+        - Background process with cron fallback
+        - Not sure
+        - Doesn't apply, this is a site bug
+  - type: textarea
+    id: once-output
+    attributes:
+      label: Output of `vm-vitals once`
+      description: |
+        This prints exactly what the agent sends. It includes your hostname, process names and tool versions. Remove anything you don't want public before you paste it.
+      render: json

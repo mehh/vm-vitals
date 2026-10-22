@@ -1,0 +1,33 @@
+name: Feature request
+description: An idea that would make VM Vitals more useful.
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Agent
+        - Dashboard
+        - Share page
+        - Alerts
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: The situation, not the solution yet. "My bot filled the disk at 3am and I found out at 9" beats "add alerts".
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: How you picture it working. Rough is fine.
+  - type: textarea
+    id: privacy
+    attributes:
+      label: New data the agent would need to collect
+      description: If this needs the agent to report something new, say what. Anything new gets listed on the privacy page.

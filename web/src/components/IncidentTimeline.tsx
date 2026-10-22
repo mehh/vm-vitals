@@ -27,15 +27,18 @@ export function IncidentTimeline({ machineId, canEdit }: { machineId: string; ca
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold">Incidents</h2>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <div className="kicker">incidents</div>
+          <h2 className="mt-2 text-xl font-bold tracking-tight">What broke, what fixed it</h2>
+        </div>
         {canEdit && !adding && (
           <button className="btn" onClick={() => setAdding(true)}>
             + Log an incident
           </button>
         )}
       </div>
-      <p className="text-sm text-muted">What broke, what fixed it. Future you (and everyone you share this with) will thank you.</p>
+      <p className="text-sm text-muted">Write it down while it&apos;s fresh. Future you, and everyone you share this with, will thank you.</p>
 
       {adding && (
         <IncidentForm
@@ -48,7 +51,7 @@ export function IncidentTimeline({ machineId, canEdit }: { machineId: string; ca
         />
       )}
 
-      {items.length === 0 && !adding && <div className="card p-5 text-sm text-muted">No incidents logged. Nice.</div>}
+      {items.length === 0 && !adding && <div className="rounded-lg border border-dashed border-line p-6 text-sm text-muted">No incidents logged. Nice.</div>}
 
       <ol className="space-y-3">
         {items.map((inc) =>
@@ -69,7 +72,7 @@ export function IncidentTimeline({ machineId, canEdit }: { machineId: string; ca
               <SeverityDot severity={inc.severity} />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-3">
-                  <div className="font-medium">{inc.title}</div>
+                  <div className="font-bold">{inc.title}</div>
                   <div className="mono text-xs text-muted">
                     {new Date(inc.started_at).toLocaleString()} · {inc.severity}
                     {inc.resolved_at ? ` · resolved ${ago(inc.resolved_at)}` : " · open"}

@@ -1,0 +1,52 @@
+name: Detect a new agent CLI
+description: Ask VM Vitals to spot another AI agent CLI when it runs.
+title: "Detect "
+labels: ["enhancement"]
+body:
+  - type: input
+    id: process-name
+    attributes:
+      label: Process name
+      description: The name you see in `ps` or `top` while it runs.
+      placeholder: "aider"
+    validations:
+      required: true
+  - type: input
+    id: label
+    attributes:
+      label: Display label
+      description: How it should show up on the dashboard.
+      placeholder: "Aider"
+    validations:
+      required: true
+  - type: dropdown
+    id: launch
+    attributes:
+      label: How it is launched
+      options:
+        - Native binary
+        - Node script (node, bun, deno, npx)
+        - Python script (python3, uv)
+        - Shell script
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: ps
+    attributes:
+      label: How it shows up in ps
+      description: |
+        Optional. Run `ps -axww -o pid=,comm=,args=` while it's running and paste the one line for it. Delete everything after the first two words of the command, since arguments can hold keys.
+      render: text
+  - type: input
+    id: version-cmd
+    attributes:
+      label: Version command
+      description: Optional. Does `<tool> --version` print one line, fast and offline?
+  - type: input
+    id: link
+    attributes:
+      label: Link
+      description: Homepage or repo for the CLI.
+    validations:
+      required: true

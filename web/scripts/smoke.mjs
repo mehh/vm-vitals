@@ -64,11 +64,38 @@ async function main() {
   let r = await call("/install.sh", {}, false);
   const sh = await r.text();
   check("install.sh served", r.ok && sh.includes("install --server"));
+  check("install.sh links the source and uninstaller", sh.includes("github.com/mehh/vm-vitals") && sh.includes("/uninstall.sh"));
+
+  // uninstall.sh
+  r = await call("/uninstall.sh", {}, false);
+  const un = await r.text();
+  check("uninstall.sh served", r.ok && un.includes("uninstall") && un.includes("com.vmvitals.agent") && un.includes("vm-vitals.service"));
+
+  // SEO plumbing
+  for (const [path, type] of [
+    ["/opengraph-image", "image/png"],
+    ["/twitter-image", "image/png"],
+    ["/og/demo", "image/png"],
+    ["/manifest.webmanifest", "json"],
+    ["/robots.txt", "text/plain"],
+    ["/sitemap.xml", "xml"],
+    ["/icon.svg", "svg"],
+    ["/apple-touch-icon.png", "image/png"],
+    ["/favicon.ico", "icon"],
+  ]) {
+    r = await call(path, {}, false);
+    check(`${path} served`, r.ok && (r.headers.get("content-type") ?? "").includes(type), r.headers.get("content-type"));
+  }
+  r = await call("/install", {}, false);
+  const inst = await r.text();
+  check("install page links source + uninstall", r.ok && inst.includes("github.com/mehh/vm-vitals") && inst.includes("uninstall.sh"));
 
   // homepage offers the bot prompt flow
   r = await call("/", {}, false);
   const home = await r.text();
-  check("home offers bot prompt", r.ok && home.includes("Get a prompt for your Grok Bot"));
+  check("home offers bot prompt", r.ok && home.includes("Copy prompt for your Grok Bot"));
+  check("home has og + twitter images", home.includes("og:image") && home.includes("twitter:image") && home.includes("manifest.webmanifest"));
+  check("home footer links the source", home.includes("Read every line on GitHub"));
   check("home has no leftover install-command CTA", !home.includes("Get my install command"));
 
   // mint token + prompt

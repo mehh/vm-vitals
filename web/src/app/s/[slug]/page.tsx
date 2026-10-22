@@ -9,8 +9,10 @@ import { healthScore, moodFor, rootDisk } from "@/lib/vitals";
 import { HealthBadge, SeverityDot } from "@/components/ui";
 import { ReportView } from "@/components/ReportView";
 import { Charts } from "@/components/Charts";
-import { MoodCard } from "@/components/MoodCard";
-import { VitalsBoard } from "@/components/VitalsBoard";
+import { MachineHero } from "@/components/MachineHero";
+import { CrewBoard } from "@/components/CrewBoard";
+import { Critter } from "@/components/Critters";
+import { ShareButtons } from "@/components/ShareButtons";
 
 export const dynamic = "force-dynamic";
 
@@ -33,8 +35,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const r = d.m.last_report;
   const root = rootDisk(r);
   const desc = r
-    ? `${d.mood.emoji} ${d.mood.label} · health ${d.score}/100 · CPU ${Math.round(r.cpu.pct)}% · Mem ${Math.round(r.mem.pct)}% · Disk ${root ? Math.round(root.pct) : "?"}% · ${r.jobs.length} agent job${r.jobs.length === 1 ? "" : "s"} awake`
-    : "Paired, listening for the first heartbeat";
+    ? `${d.mood.label}, health ${d.score}/100. CPU ${Math.round(r.cpu.pct)}%, memory ${Math.round(r.mem.pct)}%, disk ${root ? Math.round(root.pct) : "?"}%, ${r.jobs.length} agent job${r.jobs.length === 1 ? "" : "s"} awake. Live from VM Vitals.`
+    : "Paired and listening for the first heartbeat. Live from VM Vitals.";
   const url = `${appUrl()}/s/${slug}`;
   const title = `${d.m.name} is ${d.mood.label.toLowerCase()} · my AI's computer, live`;
   return {
@@ -52,85 +54,101 @@ export default async function SharePage({ params }: { params: Promise<{ slug: st
   if (!d) notFound();
   const { m, alerts, incidents, health, open } = d;
   return (
-    <div className="space-y-8">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="text-xs uppercase tracking-widest text-muted">my AI&apos;s computer, live</div>
-          <div className="mt-1 flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{m.name}</h1>
+    <div>
+      <MachineHero
+        id={m.id}
+        name={m.name}
+        kicker="my AI's computer, live"
+        meta={
+          <>
+            {osLabel(m.os)} {m.arch} · {d.offline ? "last seen" : "heartbeat"} {ago(m.last_seen_at)} · the crew updates live
+          </>
+        }
+        report={m.last_report}
+        offline={d.offline}
+        openSeverities={open}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
             <HealthBadge health={health} big />
+            <ShareButtons url={`${appUrl()}/s/${slug}`} title={`${m.name} · VM Vitals`} />
           </div>
-          <div className="mono mt-1 text-xs text-muted">
-            {osLabel(m.os)} {m.arch} · {d.offline ? "last seen" : "heartbeat"} {ago(m.last_seen_at)} · gauges refresh live, the rest on reload
-          </div>
-        </div>
-        <Link href="/" className="btn btn-primary">
-          Monitor your own bot
-        </Link>
-      </header>
+        }
+      />
 
-      <MoodCard report={m.last_report} offline={d.offline} openSeverities={open} />
-
-      <VitalsBoard machineId={m.id} report={m.last_report} />
-
-      {m.last_report ? (
-        <>
-          <Charts machineId={m.id} />
-          <ReportView report={m.last_report} alerts={alerts} />
-        </>
-      ) : (
-        <div className="card p-8 text-center text-sm text-muted">
-          <div className="text-3xl" aria-hidden>
-            👂
-          </div>
-          <div className="mt-2">Paired. Listening for the first heartbeat.</div>
-        </div>
-      )}
-
-      <section className="space-y-3">
-        <h2 className="font-semibold">Incidents</h2>
-        {incidents.length === 0 ? (
-          <div className="card p-5 text-sm text-muted">No incidents logged. Either nothing has broken yet, or nobody wrote it down.</div>
+      <div className="wrap space-y-16 pt-10">
+        {m.last_report ? (
+          <CrewBoard machineId={m.id} report={m.last_report} offline={d.offline} />
         ) : (
-          <ol className="space-y-3">
-            {incidents.map((inc) => (
-              <li key={inc.id} className="card flex gap-3 p-4">
-                <SeverityDot severity={inc.severity} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-baseline gap-x-3">
-                    <div className="font-medium">{inc.title}</div>
-                    <div className="mono text-xs text-muted">
-                      {new Date(inc.started_at).toLocaleDateString()} · {inc.severity} · {inc.resolved_at ? "resolved" : "open"}
-                    </div>
-                  </div>
-                  {inc.what_broke && (
-                    <div className="mt-2 text-sm">
-                      <span className="text-muted">Broke: </span>
-                      <span className="whitespace-pre-wrap text-secondary">{inc.what_broke}</span>
-                    </div>
-                  )}
-                  {inc.what_fixed && (
-                    <div className="mt-1 text-sm">
-                      <span className="text-muted">Fix: </span>
-                      <span className="whitespace-pre-wrap text-secondary">{inc.what_fixed}</span>
-                    </div>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ol>
+          <div className="rounded-lg border border-dashed border-line-strong p-10 text-center text-sm text-muted">Paired. Listening for the first heartbeat.</div>
         )}
-      </section>
 
-      <section className="card card-glow flex flex-wrap items-center justify-between gap-4 p-5">
-        <div>
-          <div className="font-semibold">Got a bot of your own?</div>
-          <div className="text-sm text-secondary">Paste one prompt into it. Thirty seconds later you have a page like this.</div>
-        </div>
-        <Link href="/#install" className="btn btn-primary">
-          Get a prompt for your Grok Bot
-        </Link>
-      </section>
+        {m.last_report && (
+          <>
+            <Charts machineId={m.id} />
+            <section className="space-y-4">
+              <div>
+                <div className="kicker">right now</div>
+                <h2 className="mt-2 text-xl font-bold tracking-tight">What the box is up to</h2>
+              </div>
+              <ReportView report={m.last_report} alerts={alerts} />
+            </section>
+          </>
+        )}
+
+        <section className="space-y-4">
+          <div>
+            <div className="kicker">incidents</div>
+            <h2 className="mt-2 text-xl font-bold tracking-tight">What broke, what fixed it</h2>
+          </div>
+          {incidents.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-line p-6 text-sm text-muted">Nothing logged. Either nothing has broken yet, or nobody wrote it down.</div>
+          ) : (
+            <ol className="divide-y divide-line border-y border-line">
+              {incidents.map((inc) => (
+                <li key={inc.id} className="flex gap-3 py-4">
+                  <SeverityDot severity={inc.severity} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-x-3">
+                      <div className="font-bold">{inc.title}</div>
+                      <div className="text-xs text-muted">
+                        {new Date(inc.started_at).toLocaleDateString()} · {inc.severity} · {inc.resolved_at ? "resolved" : "open"}
+                      </div>
+                    </div>
+                    {inc.what_broke && (
+                      <div className="mt-2 text-sm">
+                        <span className="text-muted">broke: </span>
+                        <span className="whitespace-pre-wrap text-fg-2">{inc.what_broke}</span>
+                      </div>
+                    )}
+                    {inc.what_fixed && (
+                      <div className="mt-1 text-sm">
+                        <span className="text-muted">fix: </span>
+                        <span className="whitespace-pre-wrap text-fg-2">{inc.what_fixed}</span>
+                      </div>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+
+        <section className="relative overflow-hidden rounded-lg border border-line">
+          <div className="grid-bg pointer-events-none absolute inset-0" aria-hidden />
+          <div className="relative flex flex-col items-start gap-6 p-8 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-5">
+              <Critter kind="grok" id="share-cta" expr="curious" size={80} />
+              <div>
+                <div className="text-2xl font-bold tracking-tight">Got a bot of your own?</div>
+                <div className="mt-1 text-sm text-muted">Paste one prompt into it. A minute later you have a page like this.</div>
+              </div>
+            </div>
+            <Link href="/" className="btn btn-primary btn-lg">
+              Get a prompt for your Grok Bot
+            </Link>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

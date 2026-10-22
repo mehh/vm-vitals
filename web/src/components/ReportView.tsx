@@ -6,8 +6,8 @@ import { Meter, SeverityDot } from "./ui";
 export function ReportView({ report, alerts, compact = false }: { report: Report; alerts?: Alert[]; compact?: boolean }) {
   const r = report;
   return (
-    <div className="space-y-6">
-      <div className={`grid gap-4 ${compact ? "" : "lg:grid-cols-2"}`}>
+    <div className="space-y-4">
+      <div className={`grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-line bg-line ${compact ? "" : "lg:grid-cols-2"}`}>
         {alerts && (
           <Card title="Alerts" badge={String(alerts.filter((a) => !a.resolved_at).length)}>
             <AlertsList alerts={alerts.slice(0, 12)} />
@@ -17,11 +17,11 @@ export function ReportView({ report, alerts, compact = false }: { report: Report
           {r.jobs.length === 0 ? (
             <Empty>Nobody&apos;s home. No claude, codex, grok or aider process is running. The box is napping.</Empty>
           ) : (
-            <ul className="divide-y divide-border">
+            <ul className="divide-y divide-line">
               {r.jobs.map((j) => (
                 <li key={j.pid} className="flex items-center gap-3 py-2 text-sm">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-good pulse" />
-                  <span className="font-medium">{j.kind || j.name}</span>
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-ok pulse" />
+                  <span className="font-bold">{j.kind || j.name}</span>
                   <span className="mono text-xs text-muted">pid {j.pid}</span>
                   <span className="mono ml-auto text-xs text-secondary">
                     {duration(j.elapsed_s)} · {j.cpu_pct}% cpu · {bytes(j.rss_b, 0)}
@@ -33,7 +33,7 @@ export function ReportView({ report, alerts, compact = false }: { report: Report
         </Card>
 
         <Card title="Top processes">
-          <ul className="divide-y divide-border">
+          <ul className="divide-y divide-line">
             {r.top_procs.slice(0, 8).map((p) => (
               <li key={p.pid} className="flex items-center gap-3 py-1.5 text-sm">
                 <span className="mono w-14 shrink-0 text-xs text-muted">{p.pid}</span>
@@ -96,10 +96,10 @@ export function ReportView({ report, alerts, compact = false }: { report: Report
         </Card>
       </div>
 
-      <Card title="Installed tools" badge={String(r.tools.length)}>
+      <Card title="Installed tools" badge={String(r.tools.length)} framed>
         <ul className="flex flex-wrap gap-2">
           {r.tools.map((t) => (
-            <li key={t.name} className="mono rounded-md border border-border bg-bg px-2 py-1 text-xs" title={t.path}>
+            <li key={t.name} className="rounded border border-line px-2 py-1 text-xs" title={t.path}>
               <span className="text-primary">{t.name}</span>
               {t.version && <span className="text-muted"> {shortVersion(t.name, t.version)}</span>}
             </li>
@@ -107,7 +107,7 @@ export function ReportView({ report, alerts, compact = false }: { report: Report
         </ul>
       </Card>
 
-      <div className="mono text-xs text-muted">
+      <div className="text-xs text-muted">
         {r.hostname} · {r.kernel} · {r.arch} · up {duration(r.uptime_s)} · agent {r.agent_version}
         {r.warnings?.length ? ` · ${r.warnings.length} collector warning(s)` : ""}
       </div>
@@ -119,7 +119,7 @@ export function AlertsList({ alerts, onlyOpen = false }: { alerts: Alert[]; only
   const list = onlyOpen ? alerts.filter((a) => !a.resolved_at) : alerts;
   if (list.length === 0) return <Empty>Nothing to see. Disk under 85%, no OOM kills, no dead jobs. Suspiciously well behaved.</Empty>;
   return (
-    <ul className="divide-y divide-border">
+    <ul className="divide-y divide-line">
       {list.map((a) => (
         <li key={String(a.id)} className={`flex gap-3 py-2 text-sm ${a.resolved_at ? "opacity-50" : ""}`}>
           <SeverityDot severity={a.severity} />
@@ -136,12 +136,12 @@ export function AlertsList({ alerts, onlyOpen = false }: { alerts: Alert[]; only
   );
 }
 
-function Card({ title, badge, children }: { title: string; badge?: string; children: React.ReactNode }) {
+function Card({ title, badge, children, framed = false }: { title: string; badge?: string; children: React.ReactNode; framed?: boolean }) {
   return (
-    <section className="card p-4">
+    <section className={`min-w-0 bg-black p-5 ${framed ? "rounded-lg border border-line" : ""}`}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-medium">{title}</h3>
-        {badge && <span className="mono rounded-full bg-surface-2 px-2 py-0.5 text-xs text-secondary">{badge}</span>}
+        <h3 className="kicker">{title}</h3>
+        {badge && <span className="text-xs font-bold text-fg">{badge}</span>}
       </div>
       {children}
     </section>

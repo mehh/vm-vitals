@@ -1,164 +1,233 @@
-# VM Vitals
+# vm-vitals
 
-Free, shareable health monitor for the computers that run your AI agents. The VM
-with Claude Code on it. The Mac mini running Grok Bot overnight. The box you only
-remember exists when the disk fills up and Codex stops answering.
+**Is my bot's computer okay?**
 
-One line installs a tiny Go daemon. Every 30 seconds it reports disk, CPU, memory,
-load, swap, top processes, OOM kills, which agent CLIs are installed, and which
-agent jobs are running. The web app gives you a live dashboard, alerts, a public
-share page with an OG card for X, and an incident log for "what broke, what fixed
-it".
+[![ci](https://github.com/mehh/vm-vitals/actions/workflows/ci.yml/badge.svg)](https://github.com/mehh/vm-vitals/actions/workflows/ci.yml)
+[![agent-linux](https://github.com/mehh/vm-vitals/actions/workflows/agent-linux.yml/badge.svg)](https://github.com/mehh/vm-vitals/actions/workflows/agent-linux.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-white.svg)](LICENSE)
+[![live](https://img.shields.io/badge/live-vm--vitals.vercel.app-black.svg)](https://vm-vitals.vercel.app)
 
-Numbers and process names only. Never env vars, never command-line arguments,
-never file contents. `vm-vitals once` prints exactly what gets sent.
+A heartbeat for the computer your Grok Bot lives on. You paste one prompt into your bot, it installs a small open-source agent on its own machine, and a minute later you're watching CPU, memory, disk and network from your phone. Grok Bot's antenna turns amber when things get tight. Its four blob friends fill up like jars as their numbers climb, and they sweat when the box does.
 
-## Install (on the machine your bot lives on)
+Free, no account, Linux and macOS. Numbers only, never secrets. Every line is in this repo.
 
-1. Open the web app, click "Get a prompt for your Grok Bot".
-2. Paste the prompt into your bot (Grok Bot, Claude Code, Codex, anything with a shell). It runs the install line and hands back the dashboard link.
-3. Prefer to do it yourself? Open "or run it yourself" under the prompt and run the line on the box:
+![The VM Vitals landing page: "is my bot's computer okay?" with Grok Bot and the crew](oss-shots/landing-hero.png)
+
+## Send this prompt to your Grok Bot
+
+1. Open [vm-vitals.vercel.app](https://vm-vitals.vercel.app) and click **Copy prompt for your Grok Bot**. That mints a one-time pair token, bakes it into a prompt and copies it.
+2. Paste it to your bot. Grok Bot, Claude Code, Codex, anything that can run a shell command. The prompt looks like this, with your token in place of the x's:
+
+   ```
+   Hey Grok Bot, install VM Vitals on your computer so I can watch your vitals. Run exactly this command, then tell me the dashboard link it prints:
+
+   curl -fsSL https://vm-vitals.vercel.app/install.sh | sh -s -- pair_xxxxxxxxxxxxxxxxxxxxxxxx
+
+   It only sends system numbers (disk, CPU, memory, network, process names, tool versions). Never env vars or file contents. Don't change the command. If you don't have sudo, run it without; a user-level service is fine.
+   ```
+
+3. Wait. The page you copied it from listens for the pairing and jumps to your dashboard when the first heartbeat lands, usually within a minute.
+4. Flip **Public page** on the dashboard, hit **Copy link**, and send it to your friends. The link unfurls into a live card.
+
+Rather do it yourself? Under the prompt there's an "or run it yourself" toggle with the raw curl line. Pipe it to `sudo sh` for a system-wide install.
+
+## What you get
+
+| Dashboard | Share card |
+|---|---|
+| ![Dashboard: Grok Bot thriving at 95, the crew, share panel](oss-shots/dashboard-hero.png) | ![The share card that unfurls on X and in chats](oss-shots/og-share.png) |
+
+- **A health score** from 0 to 100 and a mood: thriving, humming along, sweating a bit, wheezing, flatlining, or gone quiet. Grok Bot's face and antenna light follow it.
+- **The crew.** Chip watches CPU and load, Mimi watches memory and swap, Stash watches the root disk, Ping watches the network. Each one fills up with its number, turns amber at 85% and red at 95%.
+- **Charts** for the last hour, 6 hours, a day or a week.
+- **Alerts** for full disks, memory pressure, swap, runaway load, OOM kills, agent jobs that died, and machines that went quiet.
+- **Which agent jobs are awake.** Claude Code, Codex, Grok, Aider, Gemini CLI, OpenCode, Goose and friends, with how long they've been running.
+- **An incident log** for "what broke, what fixed it".
+- **A public page and a live OG card** with the crew and the score, redrawn from the latest heartbeat every time someone unfurls it.
+
+More screenshots, desktop and phone, are in [`oss-shots/`](oss-shots).
+
+## What the background agent does
+
+The agent is one static Go binary with no dependencies outside the standard library. It runs as the user who installed it and does the same thing forever: collect, send, sleep 30 seconds.
+
+### What it collects
+
+| Metric | Where it comes from |
+|---|---|
+| CPU %, core count, load averages | `/proc/stat`, `/proc/loadavg` on Linux. `top -l 2` and `sysctl` on macOS |
+| Memory and swap, total and used | `/proc/meminfo`. `sysctl` and `vm_stat` on macOS |
+| Disk size and usage per real mount | `/proc/mounts` plus statfs on Linux. On macOS, statfs on `/` and on each mounted volume under `/Volumes`. tmpfs, overlay and friends are skipped unless one is the root |
+| Network bytes per second in and out | `/proc/net/dev`, or `netstat -ib` on macOS. Loopback is ignored |
+| Top 8 processes by CPU | `ps`: pid, executable name, CPU %, memory %, resident memory |
+| Running agent jobs | `ps`, matched against a fixed list of agent CLIs. Name, pid, CPU, memory, how long it has run |
+| Installed CLI versions | `<tool> --version` for a fixed list (claude, codex, grok, node, python3, docker, …), first line only |
+| OOM kills, Linux only | the counter in `/proc/vmstat`, plus "Killed process N (name)" lines from `journalctl -k` when readable |
+| Hostname, OS, arch, kernel, uptime, agent version | the hostname call, `/proc/sys/kernel/osrelease` and `/proc/uptime` on Linux, `sysctl` and `uname -r` on macOS |
+
+The exact shape is `Report` in [`agent/internal/collect/types.go`](agent/internal/collect/types.go). Run `vm-vitals once` on the box to print the exact JSON it would send.
+
+### How often and where
+
+Every 30 seconds, one HTTPS POST of that JSON to `https://vm-vitals.vercel.app/api/ingest`, or whatever server you paired with. The machine token from pairing goes in the `Authorization` header and is stored hashed on the server. The server can slow the interval down but never below 10 seconds. The agent doesn't listen on any port and never runs anything the server sends back.
+
+### What it never touches
+
+- **File contents.** It reads kernel counters from `/proc` and asks `ps`, `sysctl`, `vm_stat` and `netstat` for numbers. It never opens your files, logs or shell history. The only directory it lists is `/Volumes` on macOS, to find mounted disks.
+- **Keystrokes**, the clipboard, the screen, your prompts or chat logs.
+- **Secrets.** It reads `PATH` and `HOME` from its environment and nothing else. Version probes run with a minimal environment so tools can't leak yours either.
+- **Command-line arguments.** API keys get passed on command lines all the time, so the agent cuts every command line down to the basename of argv[0] and argv[1] before it lands in memory. The rest is thrown away.
+- **Network addresses**, open ports and connections.
+
+If you catch it doing anything not on this page, that's a security bug. See [SECURITY.md](SECURITY.md).
+
+### Inspect the service
+
+`vm-vitals status` prints where everything lives, whether it's running, and the service file verbatim. Here are the three ways it can run, exactly as `vm-vitals install` writes them for a user install. With sudo, the paths become `/usr/local/bin`, `/etc/vm-vitals` and `/var/log/vm-vitals`.
+
+**Linux with systemd**, `~/.config/systemd/user/vm-vitals.service` (`/etc/systemd/system/vm-vitals.service` as root):
+
+```ini
+[Unit]
+Description=VM Vitals agent (health monitor for AI-agent machines)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/home/bot/.local/bin/vm-vitals run --config /home/bot/.config/vm-vitals/config.json
+Restart=always
+RestartSec=10
+Nice=10
+# Hardening: the agent only needs to read /proc and run ps.
+NoNewPrivileges=true
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=/home/bot/.local/state/vm-vitals
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
+```
+
+Check on it with `systemctl --user status vm-vitals` and `journalctl --user -u vm-vitals -f`. Drop `--user` for a root install.
+
+**macOS with launchd**, `~/Library/LaunchAgents/com.vmvitals.agent.plist` (`/Library/LaunchDaemons/` as root):
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.vmvitals.agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/you/.local/bin/vm-vitals</string>
+    <string>run</string>
+    <string>--config</string>
+    <string>/Users/you/.config/vm-vitals/config.json</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ProcessType</key><string>Background</string>
+  <key>Nice</key><integer>10</integer>
+  <key>StandardOutPath</key><string>/Users/you/Library/Logs/vm-vitals/agent.log</string>
+  <key>StandardErrorPath</key><string>/Users/you/Library/Logs/vm-vitals/agent.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/Users/you/.local/bin</string>
+  </dict>
+</dict>
+</plist>
+```
+
+Check on it with `launchctl print gui/$(id -u)/com.vmvitals.agent` and `tail -f ~/Library/Logs/vm-vitals/agent.log`.
+
+**Linux without systemd**, the nohup-style fallback. Containers and VMs where `systemctl --user` says "Failed to connect to bus" get the agent started detached in its own session, with its pid in `~/.local/state/vm-vitals/agent.pid` and output in `agent.log` next to it. This line goes into your crontab so it comes back after a reboot:
+
+```
+@reboot /home/bot/.local/bin/vm-vitals run --config /home/bot/.config/vm-vitals/config.json >> /home/bot/.local/state/vm-vitals/agent.log 2>&1 # vm-vitals
+```
+
+Check on it with `crontab -l | grep vm-vitals` and `tail -f ~/.local/state/vm-vitals/agent.log`.
+
+The config at `~/.config/vm-vitals/config.json` (mode 600) holds the server URL, machine id, interval and the machine token. Treat the token like a password. Everything else `vm-vitals status` prints is safe to paste in an issue.
+
+### Stop it and uninstall it, in one command
 
 ```sh
-curl -fsSL https://YOUR-HOST/install.sh | sh -s -- pair_xxxxxxxxxxxxxxxxxxxxxxxx
+curl -fsSL https://vm-vitals.vercel.app/uninstall.sh | sh
 ```
 
-Linux gets a systemd service (system-wide if run as root, otherwise a user service
-with linger enabled). macOS gets a launchd agent. The dashboard opens itself in the
-browser that minted the token, about 30 seconds later.
-
-Useful afterwards:
-
-```sh
-vm-vitals once        # print one full report as JSON
-vm-vitals uninstall   # stop and remove the service
-# logs
-journalctl -u vm-vitals -f            # Linux, root install
-journalctl --user -u vm-vitals -f     # Linux, user install
-tail -f ~/Library/Logs/vm-vitals/agent.log   # macOS
-```
-
-No account is needed. Machines belong to the browser that paired them. If you want
-to open them from a phone or another laptop, type an email on the machine page and
-click the magic link. That's the whole login system.
-
-## Tell your bot to install it
-
-Paste this into Grok Bot, Claude Code, Codex, or whatever is driving the machine.
-Replace the token.
-
-```
-Install the VM Vitals health monitor on this machine so I can watch your computer
-from my phone. Run exactly this command, then tell me the dashboard URL it prints:
-
-curl -fsSL https://YOUR-HOST/install.sh | sh -s -- pair_xxxxxxxxxxxxxxxxxxxxxxxx
-
-It only sends system metrics (disk, CPU, memory, process names, tool versions).
-Do not modify the command. If it asks for sudo and you don't have it, run it
-without sudo; a user-level service is fine.
-```
-
-The homepage renders this prompt with your real token filled in. The dashboard shows a health score (0 to 100), a mood, a heartbeat that beats faster when CPU and load climb, live gauges and one-hour sparklines for CPU, memory, disk and network, plus the usual charts.
+That stops the agent and deletes the service file, the crontab line, the binary, the config with the token, and the logs. It works for any agent version, even if the binary is already gone. Use `| sudo sh` for a system-wide install. If `~/.local/bin` is on your PATH, `vm-vitals uninstall` does the same thing. Then hit **delete** on the dashboard to drop the machine's history from the server too.
 
 ## Run it locally
 
-Requirements: Go 1.22+, Node 20+, pnpm. No Postgres needed for local dev; the app
-falls back to an embedded PGlite database in `web/.data/`.
+You need Go 1.22+, Node 20+ and pnpm. No Postgres needed. Without `DATABASE_URL` the app uses an embedded PGlite database in `web/.data/`.
 
 ```sh
-# 1. build agent binaries into web/public/dl/ so /install.sh can serve them
-./agent/build.sh
-
-# 2. run the web app
+./agent/build.sh          # build agent binaries into web/public/dl/ so /install.sh can serve them
 cd web
 pnpm install
-pnpm dev            # http://localhost:3000
-
-# 3. end-to-end check (pairs a fake machine, ingests, flips alerts, renders OG image)
-pnpm smoke
-pnpm test           # unit tests for the bot prompt and health score
-
-# 4. point a real agent at it
-# click "Get a prompt for your Grok Bot" on localhost:3000, open "or run it yourself", then:
-curl -fsSL http://localhost:3000/install.sh | sh -s -- pair_...
+pnpm dev                  # http://localhost:3000
+pnpm test                 # unit tests: bot prompt, health score, report parsing
+pnpm smoke                # end to end against the dev server: pair, ingest, alerts, share page, OG cards
 ```
 
-Agent tests: `cd agent && go test ./...`
+Then click **Copy prompt for your Grok Bot** on localhost:3000 and paste it to a bot, or open "or run it yourself" and run the curl line. Agent tests: `cd agent && go test ./...`.
 
-## Deploy
+To get a dashboard full of believable data without a real machine, `node scripts/seed-demo.mjs` pairs a fake "grok-mini" with an hour of history and prints its URLs.
 
-The web app is a stock Next.js app. Vercel plus a Postgres (Neon or Vercel Postgres)
-is the intended target. Set these environment variables:
+## Deploy your own
 
-| Name | Purpose |
+The web app is a stock Next.js 16 app. Vercel plus Neon is what runs the hosted one.
+
+| Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | Postgres connection string. Tables are created on first request. |
-| `NEXT_PUBLIC_APP_URL` | Public URL, baked into install commands and OG cards. |
-| `RELEASE_BASE_URL` | Where agent binaries live, e.g. a GitHub release. Files must be named `vm-vitals-<os>-<arch>`. Unset = serve from `web/public/dl/`. |
-| `RESEND_API_KEY` | Optional. Enables magic-link emails. Unset = link is printed to the server log. |
-| `EMAIL_FROM` | Optional. Sender for magic links. |
+| `DATABASE_URL` | Postgres connection string. Tables are created on first request |
+| `NEXT_PUBLIC_APP_URL` | Public URL, baked into install commands, canonical links and OG cards |
+| `RELEASE_BASE_URL` | Where agent binaries live, like a GitHub release download path. Files are named `vm-vitals-<os>-<arch>`. Unset means serve from `web/public/dl/` |
+| `RESEND_API_KEY` | Optional. Sends magic-link emails. Unset means the link goes to the server log |
+| `EMAIL_FROM` | Optional. Sender for magic links |
 
-Build binaries with `VERSION=v0.1.0 ./agent/build.sh` and upload the four files
-to the release.
-
-## What gets reported
-
-See `/privacy` in the app, or read `agent/internal/collect/`. Short version:
-
-- hostname, OS, arch, kernel, uptime, agent version
-- CPU %, cores, load averages, memory, swap, per-disk usage
-- network bytes per second in and out across non-loopback interfaces (agent v0.2+)
-- top 8 processes (pid, executable name, cpu, mem)
-- OOM kill counter from `/proc/vmstat` and "Killed process N (name)" fragments when the journal is readable (Linux only)
-- which of a fixed list of CLIs are on PATH, and their `--version` first line
-- running agent jobs (claude, codex, gemini, grok, aider, opencode, goose, cursor-agent, amp, openclaw, ollama, ...): pid, cpu, mem, runtime. Children are folded into the parent.
-
-The agent reads only PATH and HOME from its environment. Process arguments are
-trimmed to the basename of argv[0] and argv[1] before they land in a Go struct,
-so API keys passed on a command line never make it into memory, let alone the wire.
+Build release binaries with `VERSION=v0.3.0 ./agent/build.sh` and upload the four files to a GitHub release.
 
 ## Alerts
 
-Evaluated server-side on every report:
+Checked on the server on every report.
 
-| Alert | Condition |
+| Alert | Fires when |
 |---|---|
-| disk | any real filesystem ≥85% (warning), ≥95% (critical) |
-| memory | ≥90% (warning), ≥95% (critical) |
-| swap | ≥80% of configured swap |
-| load | 5-minute load > 2× core count |
-| oom | kernel OOM kill counter increased |
-| job_died | an agent process seen last tick (running ≥60s) is gone |
+| disk | any real filesystem hits 85% (warning) or 95% (critical) |
+| memory | 90% (warning) or 95% (critical) |
+| swap | 80% of configured swap |
+| load | 5-minute load above twice the core count |
+| oom | the kernel OOM kill counter went up |
+| job_died | an agent process that had run for at least 60s is gone |
 | offline | no report for 2 minutes |
 
-State alerts resolve themselves when the condition clears. OOM and job_died are
-events; they auto-resolve after an hour.
-
-## Demo GIF plan
-
-Thirty seconds, 1280×800, dark terminal on the left, browser on the right.
-
-1. (0–4s) Browser on the homepage. Click "Get a prompt for your Grok Bot". The chat bubble appears.
-2. (4–10s) Terminal: paste the prompt into the bot, or the curl line from "or run it yourself". Show "Pairing MrKlean with ... Paired. Service installed." Keep the dashboard URL line visible.
-3. (10–16s) Browser auto-redirects to the dashboard. Stat tiles fill in. Point at "Agent jobs running: Claude Code · 23h".
-4. (16–22s) Toggle "public page". Click "Post on X". Show the X compose with the unfurled card: name, "Needs attention", four bars.
-5. (22–28s) Back on the dashboard, click "+ Log an incident", type "Disk hit 90%, pnpm store prune fixed it", save. It appears in the timeline.
-6. (28–30s) Hold on the share page with the card. Caption: "my AI's computer, live."
-
-Record with `screen` on macOS or `wf-recorder` on Linux, convert with `ffmpeg -i demo.mov -vf "fps=12,scale=1280:-1" -loop 0 demo.gif` or use gifski for better colors.
+State alerts clear themselves when the condition does. OOM and job_died are events and clear after an hour.
 
 ## Layout
 
 ```
-agent/                 Go daemon. go build ./ -> single static binary
-  internal/collect/    collectors (linux.go, darwin.go, procs.go, tools.go)
-  internal/svc/        config, HTTP client, systemd/launchd installer
-  build.sh             cross-compile all four targets
-web/                   Next.js 16 app (App Router) + Postgres/PGlite
-  src/app/api/         pair, ingest, pair-tokens, machines, incidents, claim
-  src/app/m/[id]       private dashboard
-  src/app/s/[slug]     public share page + opengraph-image
-  src/app/install.sh   the installer script, templated with the host
-  src/app/dl/[file]    binary download / redirect
-  scripts/smoke.mjs    end-to-end test
+agent/                    Go daemon, standard library only
+  internal/collect/       collectors: linux.go, darwin.go, net.go, procs.go, tools.go
+  internal/svc/           config, HTTP client, systemd/launchd/cron installer, status, uninstall
+web/                      Next.js 16 app plus Postgres or PGlite
+  src/app/page.tsx        the landing page
+  src/app/m/[id]          private dashboard
+  src/app/s/[slug]        public share page and its live OG card
+  src/app/install.sh      the installer, templated with the host
+  src/app/uninstall.sh    the one-line uninstaller
+  src/components/Critters.tsx   Grok Bot and the crew, plain SVG
+  src/lib/og.tsx          social cards, drawn with next/og
+  scripts/smoke.mjs       end-to-end test
 ```
+
+## Contributing
+
+Issues and PRs are welcome. Teaching the agent to spot a new agent CLI is a two-line change and a great first PR. See [CONTRIBUTING.md](CONTRIBUTING.md). Security bugs go through [SECURITY.md](SECURITY.md), not public issues.
+
+## License
+
+[MIT](LICENSE). Geist Mono is bundled for the OG cards under the [SIL Open Font License](web/assets/fonts/OFL.txt).

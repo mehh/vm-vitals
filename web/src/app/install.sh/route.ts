@@ -11,6 +11,7 @@ export async function GET() {
   const script = `#!/bin/sh
 # VM Vitals installer. Pairs this machine and installs a background service.
 # Reads: nothing of yours. Sends: numbers, process names, CLI tool versions.
+# Open source, read every line: https://github.com/mehh/vm-vitals
 set -eu
 
 HOST="\${VM_VITALS_HOST:-${host}}"
@@ -56,6 +57,8 @@ fi
 
 echo
 echo "Done. See exactly what gets reported with:  vm-vitals once"
+echo "Inspect the service with:  vm-vitals status"
+echo "Remove everything with:    curl -fsSL $HOST/uninstall.sh | sh"
 case "$OS" in
   darwin) echo "Logs: ~/Library/Logs/vm-vitals/agent.log   Remove: vm-vitals uninstall" ;;
   linux)  if [ "$(id -u)" = 0 ]; then echo "Logs: journalctl -u vm-vitals -f (or /var/log/vm-vitals/agent.log without systemd)   Remove: vm-vitals uninstall"; else echo "Logs: journalctl --user -u vm-vitals -f (or ~/.local/state/vm-vitals/agent.log without systemd)   Remove: vm-vitals uninstall"; fi ;;

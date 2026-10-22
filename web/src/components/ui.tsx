@@ -3,9 +3,9 @@ import { HEALTH_LABEL } from "@/lib/format";
 
 export function meterColor(p: number | null | undefined) {
   if (p == null) return "var(--text-muted)";
-  if (p >= 95) return "var(--critical)";
-  if (p >= 85) return "var(--warning)";
-  return "var(--good)";
+  if (p >= 95) return "var(--bad)";
+  if (p >= 85) return "var(--warn)";
+  return "var(--fg)";
 }
 
 export function Meter({ pct }: { pct: number | null | undefined }) {
@@ -48,10 +48,10 @@ export function StatTile({
 }
 
 const HEALTH_CLASS: Record<Health, string> = {
-  ok: "bg-good/15 text-good border-good/30",
-  warning: "bg-warning/15 text-warning border-warning/30",
-  critical: "bg-critical/15 text-critical border-critical/30",
-  offline: "bg-surface-2 text-muted border-border",
+  ok: "text-ok border-ok/40",
+  warning: "text-warn border-warn/40",
+  critical: "text-bad border-bad/40",
+  offline: "text-muted border-line-strong",
 };
 
 const HEALTH_ICON: Record<Health, string> = { ok: "●", warning: "▲", critical: "✖", offline: "○" };
@@ -59,7 +59,7 @@ const HEALTH_ICON: Record<Health, string> = { ok: "●", warning: "▲", critica
 export function HealthBadge({ health, big = false }: { health: Health; big?: boolean }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border font-medium ${HEALTH_CLASS[health]} ${big ? "px-3 py-1 text-sm" : "px-2 py-0.5 text-xs"}`}
+      className={`inline-flex items-center gap-1.5 rounded border uppercase tracking-[0.12em] ${HEALTH_CLASS[health]} ${big ? "px-2.5 py-1 text-[11px]" : "px-2 py-0.5 text-[10px]"}`}
     >
       <span aria-hidden className={health === "ok" ? "pulse" : ""}>
         {HEALTH_ICON[health]}

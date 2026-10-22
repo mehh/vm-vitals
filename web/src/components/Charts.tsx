@@ -1,21 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { Sample } from "@/lib/types";
 import { bps } from "@/lib/vitals";
 
 const RANGES = ["1h", "6h", "24h", "7d"] as const;
 type Range = (typeof RANGES)[number];
 
-const SERIES = {
-  cpu_pct: { label: "CPU", color: "var(--series-1)" },
-  mem_pct: { label: "Memory", color: "var(--series-2)" },
-  disk_pct: { label: "Disk /", color: "var(--series-3)" },
-  load1: { label: "Load (1m)", color: "var(--series-4)" },
-  net_rx_bps: { label: "Download", color: "var(--series-5)" },
-  net_tx_bps: { label: "Upload", color: "var(--series-1)" },
-} as const;
 
 const RANGE_TITLE: Record<Range, string> = {
   "1h": "The last hour, in squiggles",
@@ -66,18 +58,28 @@ export function Charts({ machineId, compact = false }: { machineId: string; comp
 
   const axis = (
     <>
-      <CartesianGrid stroke="var(--border)" vertical={false} />
-      <XAxis dataKey="t" type="number" domain={["dataMin", "dataMax"]} tickFormatter={fmtTime} tick={tick} stroke="var(--border)" minTickGap={48} />
+      <CartesianGrid stroke="#1a1a1a" vertical={false} />
+      <XAxis dataKey="t" type="number" domain={["dataMin", "dataMax"]} tickFormatter={fmtTime} tick={tick} stroke="#262626" minTickGap={56} />
     </>
   );
 
+  const panels: { key: "cpu_pct" | "mem_pct" | "disk_pct" | "load1"; title: string; pct: boolean }[] = [
+    { key: "cpu_pct", title: "CPU", pct: true },
+    { key: "mem_pct", title: "Memory", pct: true },
+    { key: "disk_pct", title: "Disk /", pct: true },
+    { key: "load1", title: "Load, 1 min", pct: false },
+  ];
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold">{RANGE_TITLE[range]}</h2>
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="kicker">history</div>
+          <h2 className="mt-2 text-xl font-bold tracking-tight">{RANGE_TITLE[range]}</h2>
+        </div>
         <div className="seg" role="group" aria-label="Range">
           {RANGES.map((r) => (
-            <button key={r} onClick={() => setRange(r)} aria-pressed={r === range} className="mono">
+            <button key={r} onClick={() => setRange(r)} aria-pressed={r === range}>
               {r}
             </button>
           ))}
@@ -85,93 +87,78 @@ export function Charts({ machineId, compact = false }: { machineId: string; comp
       </div>
 
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="card shimmer h-56" />
-          <div className="card shimmer h-56" />
-        </div>
+        <div className="shimmer h-56 rounded-lg border border-line" />
       ) : data.length < 2 ? (
-        <div className="card flex h-48 flex-col items-center justify-center gap-1 text-center text-sm text-muted">
-          <div className="text-2xl" aria-hidden>
-            📈
-          </div>
+        <div className="flex h-40 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line text-center text-sm text-muted">
           <div>Two heartbeats make a line. One more report and the charts wake up.</div>
         </div>
       ) : (
-        <div className={`grid gap-4 ${compact ? "" : "md:grid-cols-2"}`}>
-          <Panel title="CPU, memory, disk" legend={["cpu_pct", "mem_pct", "disk_pct"]}>
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
-                <defs>
-                  {(["cpu_pct", "mem_pct", "disk_pct"] as const).map((k) => (
-                    <Grad key={k} id={k} color={SERIES[k].color} />
-                  ))}
-                </defs>
-                {axis}
-                <YAxis domain={[0, 100]} ticks={[0, 50, 100]} tick={tick} stroke="transparent" unit="%" />
-                <Tooltip content={<Tip fmtTime={fmtTime} fmt={(v) => `${v}%`} />} cursor={{ stroke: "var(--text-muted)", strokeWidth: 1 }} />
-                {(["cpu_pct", "mem_pct", "disk_pct"] as const).map((k) => (
-                  <Area key={k} type="monotone" dataKey={k} name={SERIES[k].label} stroke={SERIES[k].color} fill={`url(#grad-${k})`} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: "var(--surface-1)", strokeWidth: 2 }} isAnimationActive={false} connectNulls />
-                ))}
-              </AreaChart>
-            </ResponsiveContainer>
-          </Panel>
-          <Panel title="Load average (1m)" legend={["load1"]}>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
-                {axis}
-                <YAxis domain={[0, "auto"]} tick={tick} stroke="transparent" />
-                <Tooltip content={<Tip fmtTime={fmtTime} fmt={(v) => String(v)} />} cursor={{ stroke: "var(--text-muted)", strokeWidth: 1 }} />
-                <Line type="monotone" dataKey="load1" name="Load (1m)" stroke={SERIES.load1.color} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: "var(--surface-1)", strokeWidth: 2 }} isAnimationActive={false} connectNulls />
-              </LineChart>
-            </ResponsiveContainer>
-          </Panel>
+        <div className={`grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-line bg-line ${compact ? "" : "md:grid-cols-2"}`}>
+          {panels.map((p) => {
+            const last = [...data].reverse().find((d) => d[p.key] != null)?.[p.key];
+            return (
+              <Panel key={p.key} title={p.title} value={last == null ? "–" : p.pct ? `${last}%` : String(last)}>
+                <ResponsiveContainer width="100%" height={150}>
+                  <AreaChart data={data} margin={{ top: 6, right: 4, bottom: 0, left: -22 }}>
+                    <defs>
+                      <Grad id={p.key} />
+                    </defs>
+                    {axis}
+                    <YAxis domain={p.pct ? [0, 100] : [0, "auto"]} ticks={p.pct ? [0, 50, 100] : undefined} tick={tick} stroke="transparent" unit={p.pct ? "%" : ""} />
+                    <Tooltip content={<Tip fmtTime={fmtTime} fmt={(v) => (p.pct ? `${v}%` : String(v))} />} cursor={{ stroke: "var(--muted)", strokeWidth: 1 }} />
+                    <Area type="monotone" dataKey={p.key} name={p.title} stroke="#ffffff" fill={`url(#grad-${p.key})`} strokeWidth={1.75} dot={false} activeDot={{ r: 4, fill: "#ffffff", stroke: "#000", strokeWidth: 2 }} isAnimationActive={false} connectNulls />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </Panel>
+            );
+          })}
           {hasNet && (
-            <Panel title="Network" legend={["net_rx_bps", "net_tx_bps"]} wide={!compact}>
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -2 }}>
+            <Panel title="Network" wide={!compact} legend>
+              <ResponsiveContainer width="100%" height={150}>
+                <AreaChart data={data} margin={{ top: 6, right: 4, bottom: 0, left: -10 }}>
                   <defs>
-                    <Grad id="net_rx_bps" color={SERIES.net_rx_bps.color} />
-                    <Grad id="net_tx_bps" color={SERIES.net_tx_bps.color} />
+                    <Grad id="net" />
                   </defs>
                   {axis}
-                  <YAxis domain={[0, "auto"]} tick={tick} stroke="transparent" tickFormatter={(v: number) => bps(v)} width={64} />
-                  <Tooltip content={<Tip fmtTime={fmtTime} fmt={(v) => bps(v)} />} cursor={{ stroke: "var(--text-muted)", strokeWidth: 1 }} />
-                  <Area type="monotone" dataKey="net_rx_bps" name="Download" stroke={SERIES.net_rx_bps.color} fill="url(#grad-net_rx_bps)" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
-                  <Area type="monotone" dataKey="net_tx_bps" name="Upload" stroke={SERIES.net_tx_bps.color} fill="url(#grad-net_tx_bps)" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+                  <YAxis domain={[0, "auto"]} tick={tick} stroke="transparent" tickFormatter={(v: number) => bpsShort(v)} width={44} />
+                  <Tooltip content={<Tip fmtTime={fmtTime} fmt={(v) => bps(v)} />} cursor={{ stroke: "var(--muted)", strokeWidth: 1 }} />
+                  <Area type="monotone" dataKey="net_rx_bps" name="Download" stroke="#ffffff" fill="url(#grad-net)" strokeWidth={1.75} dot={false} isAnimationActive={false} connectNulls />
+                  <Area type="monotone" dataKey="net_tx_bps" name="Upload" stroke="#8a8a8a" strokeDasharray="4 3" fill="none" strokeWidth={1.75} dot={false} isAnimationActive={false} connectNulls />
                 </AreaChart>
               </ResponsiveContainer>
             </Panel>
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
-const tick = { fill: "var(--text-muted)", fontSize: 11 };
+const tick = { fill: "#8a8a8a", fontSize: 10, fontFamily: "var(--font-mono)" };
 
-function Grad({ id, color }: { id: string; color: string }) {
+function Grad({ id }: { id: string }) {
   return (
     <linearGradient id={`grad-${id}`} x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stopColor={color} stopOpacity={0.35} />
-      <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+      <stop offset="0%" stopColor="#ffffff" stopOpacity={0.16} />
+      <stop offset="100%" stopColor="#ffffff" stopOpacity={0} />
     </linearGradient>
   );
 }
 
-function Panel({ title, legend, children, wide = false }: { title: string; legend: (keyof typeof SERIES)[]; children: React.ReactNode; wide?: boolean }) {
+function Panel({ title, value, children, wide = false, legend = false }: { title: string; value?: string; children: React.ReactNode; wide?: boolean; legend?: boolean }) {
   return (
-    <div className={`card p-4 ${wide ? "md:col-span-2" : ""}`}>
-      <div className="mb-2 flex items-center justify-between">
-        <div className="text-sm font-medium">{title}</div>
-        {legend.length > 1 && (
-          <ul className="flex gap-3 text-xs text-secondary">
-            {legend.map((k) => (
-              <li key={k} className="flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 rounded-full" style={{ background: SERIES[k].color }} />
-                {SERIES[k].label}
-              </li>
-            ))}
+    <div className={`min-w-0 bg-black p-4 ${wide ? "md:col-span-2" : ""}`}>
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <div className="kicker">{title}</div>
+        {value && <div className="text-sm font-bold">{value}</div>}
+        {legend && (
+          <ul className="flex gap-4 text-xs text-fg-2">
+            <li className="flex items-center gap-1.5">
+              <span className="inline-block h-0 w-4 border-t-2 border-white" /> download
+            </li>
+            <li className="flex items-center gap-1.5">
+              <span className="inline-block h-0 w-4 border-t-2 border-dashed border-muted" /> upload
+            </li>
           </ul>
         )}
       </div>
@@ -191,15 +178,20 @@ type TipProps = {
 function Tip({ active, payload, label, fmtTime, fmt }: TipProps) {
   if (!active || !payload?.length || label == null) return null;
   return (
-    <div className="card mono px-3 py-2 text-xs shadow-lg">
+    <div className="rounded-md border border-line-strong bg-black px-3 py-2 text-xs">
       <div className="mb-1 text-muted">{fmtTime(label)}</div>
       {payload.map((p) => (
         <div key={p.name} className="flex items-center gap-2">
-          <span className="inline-block h-2 w-2 rounded-full" style={{ background: p.color }} />
-          <span className="text-secondary">{p.name}</span>
-          <span className="ml-auto pl-4 text-primary">{p.value == null ? "–" : fmt(p.value)}</span>
+          <span className="text-fg-2">{p.name}</span>
+          <span className="ml-auto pl-4 font-bold text-fg">{p.value == null ? "–" : fmt(p.value)}</span>
         </div>
       ))}
     </div>
   );
+}
+
+function bpsShort(v: number) {
+  if (v >= 1024 * 1024) return `${(v / 1024 / 1024).toFixed(1)}M`;
+  if (v >= 1024) return `${Math.round(v / 1024)}K`;
+  return String(Math.round(v));
 }

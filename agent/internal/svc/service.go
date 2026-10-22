@@ -38,35 +38,6 @@ func InstallService(o InstallOpts) (string, error) {
 	}
 }
 
-func UninstallService() error {
-	switch runtime.GOOS {
-	case "linux":
-		unit := serviceName + ".service"
-		var unitPath string
-		if IsRoot() {
-			_ = exec.Command("systemctl", "disable", "--now", unit).Run()
-			unitPath = filepath.Join("/etc/systemd/system", unit)
-		} else {
-			_ = exec.Command("systemctl", "--user", "disable", "--now", unit).Run()
-			home, _ := os.UserHomeDir()
-			unitPath = filepath.Join(home, ".config/systemd/user", unit)
-		}
-		// The fallback runner may be in use instead of (or as well as) systemd.
-		stopFallback(ResolvePaths().LogDir)
-		_ = removeCron()
-		if err := os.Remove(unitPath); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		return nil
-	case "darwin":
-		plist := launchdPlistPath()
-		_ = exec.Command("launchctl", "bootout", launchdDomain(), plist).Run()
-		_ = exec.Command("launchctl", "unload", plist).Run()
-		return os.Remove(plist)
-	}
-	return nil
-}
-
 func systemdUnit(o InstallOpts) string {
 	wanted := "multi-user.target"
 	if !IsRoot() {

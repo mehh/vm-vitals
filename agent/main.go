@@ -3,6 +3,7 @@
 //	vm-vitals install --server https://vitals.example --token PAIRTOKEN
 //	vm-vitals run     [--config path]
 //	vm-vitals once    # print one report as JSON (exactly what gets sent)
+//	vm-vitals status  # where everything lives, and the service file verbatim
 //	vm-vitals uninstall
 //	vm-vitals version
 package main
@@ -42,8 +43,10 @@ func main() {
 		err = cmdRun(os.Args[2:])
 	case "once":
 		err = cmdOnce()
+	case "status":
+		cmdStatus()
 	case "uninstall":
-		err = svc.UninstallService()
+		err = cmdUninstall()
 	case "version", "--version", "-v":
 		fmt.Println("vm-vitals", Version, runtime.GOOS+"/"+runtime.GOARCH)
 	case "help", "-h", "--help":
@@ -64,7 +67,8 @@ func usage() {
   vm-vitals install --server URL --token PAIR_TOKEN [--name NAME] [--no-service]
   vm-vitals run [--config PATH]
   vm-vitals once        print one report as JSON and exit
-  vm-vitals uninstall   stop and remove the service
+  vm-vitals status      show the service, config and log paths, and the service file
+  vm-vitals uninstall   stop the agent and remove the service, binary, config and logs
   vm-vitals version`)
 }
 
@@ -74,6 +78,60 @@ func cmdOnce() error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(r)
+}
+
+func cmdUninstall() error {
+	done, err := svc.Uninstall(svc.ResolvePaths())
+	if len(done) == 0 && err == nil {
+		fmt.Println("Nothing to remove. VM Vitals isn't installed for this user.")
+		if !svc.IsRoot() {
+			fmt.Println("If you installed with sudo, run: sudo vm-vitals uninstall")
+		}
+		return nil
+	}
+	for _, d := range done {
+		fmt.Println("  " + d)
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Println("VM Vitals is gone from this machine. Delete it from the dashboard to drop its history too.")
+	return nil
+}
+
+func cmdStatus() {
+	p := svc.ResolvePaths()
+	s := svc.GetStatus(p)
+	found := func(ok bool) string {
+		if ok {
+			return ""
+		}
+		return " (missing)"
+	}
+	fmt.Printf("vm-vitals %s, %s scope\n\n", Version, s.Scope)
+	fmt.Printf("binary   %s%s\n", s.Binary, found(s.BinaryFound))
+	fmt.Printf("config   %s%s\n", s.ConfigFile, found(s.ConfigErr == nil))
+	if s.Config != nil {
+		fmt.Printf("server   %s\nmachine  %s, every %ds\n", s.Config.Server, s.Config.MachineID, s.Config.IntervalS)
+	}
+	fmt.Printf("service  %s", s.Manager)
+	if s.ServiceFile != "" {
+		fmt.Printf(", %s", s.ServiceFile)
+	}
+	fmt.Println()
+	if s.Running != "" {
+		fmt.Printf("running  %s\n", s.Running)
+	}
+	if s.CronLine != "" {
+		fmt.Printf("cron     %s\n", s.CronLine)
+	}
+	if s.LogHint != "" {
+		fmt.Printf("logs     %s\n", s.LogHint)
+	}
+	if s.ServiceBody != "" {
+		fmt.Printf("\n--- %s ---\n%s", s.ServiceFile, s.ServiceBody)
+	}
+	fmt.Println("\nThe machine token in the config is a secret. Everything else above is safe to paste in an issue.")
 }
 
 func cmdInstall(args []string) error {
