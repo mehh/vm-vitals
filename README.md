@@ -33,6 +33,8 @@ Rather do it yourself? Under the prompt there's an "or run it yourself" toggle w
 
 ## What you get
 
+<p align="center"><img src="oss-shots/crew.gif" width="420" alt="Grok Bot and the crew reacting as a machine gets busy, fills its disk, and recovers"></p>
+
 | Dashboard | Share card |
 |---|---|
 | ![Dashboard: Grok Bot thriving at 95, the crew, share panel](oss-shots/dashboard-hero.png) | ![The share card that unfurls on X and in chats](oss-shots/og-share.png) |
