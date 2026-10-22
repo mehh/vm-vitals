@@ -1,0 +1,65 @@
+# Linux checks for the agent. Pushes run the Go tests and a report-shape
+# check on Ubuntu. A manual run with a pair token also installs the agent
+# on the runner, where `systemctl --user` has no bus, so it exercises the
+# cron/background fallback end to end against the real server.
+name: agent-linux
+on:
+  push:
+    paths: ["agent/**", ".github/workflows/agent-linux.yml"]
+  pull_request:
+    paths: ["agent/**"]
+  workflow_dispatch:
+    inputs:
+      pair_token:
+        description: "One-time pair token from the site (optional). Pairs the runner for ~1 minute, then uninstalls."
+        required: false
+        default: ""
+      server:
+        description: "Server URL"
+        required: false
+        default: "https://vm-vitals.vercel.app"
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: agent/go.mod
+      - name: Unit tests
+        run: go vet ./... && go test ./...
+      - name: Build
+        run: CGO_ENABLED=0 go build -trimpath -ldflags "-X main.Version=ci" -o vm-vitals .
+      - name: Report shape (no null lists)
+        run: |
+          ./vm-vitals once > once.json
+          jq -e '.v == 1 and (.disks|type) == "array" and (.disks|length) >= 1 and (.top_procs|type) == "array" and (.tools|type) == "array" and (.jobs|type) == "array"' once.json
+          jq '{os, arch, kernel, disks: [.disks[] | {mount, fs, pct}], tools: (.tools|length), warnings}' once.json
+      - name: Install without a user systemd bus (fallback runner)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.pair_token != '' }}
+        env:
+          PAIR_TOKEN: ${{ inputs.pair_token }}
+          SERVER: ${{ inputs.server }}
+        run: |
+          echo "::add-mask::$PAIR_TOKEN"
+          set -x
+          env -u XDG_RUNTIME_DIR -u DBUS_SESSION_BUS_ADDRESS systemctl --user show-environment || echo "no user bus, as expected"
+          env -u XDG_RUNTIME_DIR -u DBUS_SESSION_BUS_ADDRESS ./vm-vitals install --server "$SERVER" --token "$PAIR_TOKEN" --name gh-runner-linux-test | tee install.out
+          grep -q "Service installed" install.out
+          grep -q "background process pid" install.out
+          crontab -l | grep "# vm-vitals"
+          PID=$(cat ~/.local/state/vm-vitals/agent.pid)
+          kill -0 "$PID"
+          sleep 50
+          cat ~/.local/state/vm-vitals/agent.log
+          ! grep -q "report failed" ~/.local/state/vm-vitals/agent.log
+          kill -0 "$PID"
+          ~/.local/bin/vm-vitals uninstall
+          sleep 1
+          ! kill -0 "$PID" 2>/dev/null
+          ! (crontab -l 2>/dev/null | grep -q "# vm-vitals")
+          echo "fallback install, report loop and uninstall all behaved"
