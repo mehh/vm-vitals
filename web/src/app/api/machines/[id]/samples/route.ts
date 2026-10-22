@@ -34,7 +34,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
             avg(swap_pct)::float8 AS swap_pct,
             avg(load1)::float8    AS load1,
             max(oom_kills)::float8 AS oom_kills,
-            max(jobs)::int        AS jobs
+            max(jobs)::int        AS jobs,
+            avg(net_rx_bps)::float8 AS net_rx_bps,
+            avg(net_tx_bps)::float8 AS net_tx_bps
        FROM samples
       WHERE machine_id = $1 AND at > now() - $2::interval
       GROUP BY 1 ORDER BY 1`,

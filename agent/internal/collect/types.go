@@ -26,7 +26,16 @@ type Report struct {
 	OOM   OOM      `json:"oom"`
 	Tools []Tool   `json:"tools"`
 	Jobs  []Job    `json:"jobs"`
+	Net   *Net     `json:"net,omitempty"`      // nil on the first tick (no baseline yet)
 	Warn  []string `json:"warnings,omitempty"` // collector errors, best-effort
+}
+
+// Net is throughput across all non-loopback interfaces since the last tick.
+type Net struct {
+	RxBps    float64 `json:"rx_bps"`
+	TxBps    float64 `json:"tx_bps"`
+	RxTotalB uint64  `json:"rx_total_b"`
+	TxTotalB uint64  `json:"tx_total_b"`
 }
 
 type CPU struct {

@@ -112,6 +112,8 @@ CREATE TABLE IF NOT EXISTS samples (
   jobs        INT
 );
 CREATE INDEX IF NOT EXISTS samples_machine_at ON samples(machine_id, at DESC);
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS net_rx_bps REAL;
+ALTER TABLE samples ADD COLUMN IF NOT EXISTS net_tx_bps REAL;
 CREATE TABLE IF NOT EXISTS alerts (
   id          BIGSERIAL PRIMARY KEY,
   machine_id  TEXT NOT NULL REFERENCES machines(id) ON DELETE CASCADE,

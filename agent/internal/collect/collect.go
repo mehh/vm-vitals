@@ -17,6 +17,7 @@ type Collector struct {
 
 	mu        sync.Mutex
 	prevCPU   cpuSample
+	prevNet   netSample
 	toolCache []Tool
 	toolAt    time.Time
 }
@@ -75,6 +76,9 @@ func (c *Collector) Collect(ctx context.Context) *Report {
 	r.Jobs = agentJobs(procs)
 
 	r.OOM = oom()
+
+	r.Net, err = c.net()
+	warn("net", err)
 
 	if time.Since(c.toolAt) > toolCacheTTL || c.toolCache == nil {
 		c.toolCache = detectTools(ctx)

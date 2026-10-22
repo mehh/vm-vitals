@@ -6,7 +6,7 @@ import { appUrl } from "@/lib/format";
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl()),
   title: { default: "VM Vitals", template: "%s · VM Vitals" },
-  description: "Free, shareable health monitor for the computers that run your AI agents.",
+  description: "A heartbeat for the computer your Grok Bot lives on. Health score, mood, live gauges, alerts, and a share card for X.",
   openGraph: { siteName: "VM Vitals", type: "website" },
   twitter: { card: "summary_large_image" },
 };
@@ -23,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </Link>
             <nav className="flex items-center gap-4 text-sm text-secondary">
               <Link href="/#install" className="hover:text-primary">
-                Install
+                Hook up a bot
               </Link>
               <Link href="/privacy" className="hover:text-primary">
                 What gets sent
@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </header>
         <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
         <footer className="mx-auto max-w-6xl px-4 py-10 text-xs text-muted">
-          Free and open. Numbers only, never secrets. Made for people whose computers work while they sleep.
+          Free and open. Numbers only, never secrets. Made for people whose bots work while they sleep.
         </footer>
       </body>
     </html>

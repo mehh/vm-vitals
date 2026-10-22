@@ -253,3 +253,11 @@ func parseOOMLines(s string) []string {
 	}
 	return out
 }
+
+func readNetSample() (netSample, error) {
+	b, err := os.ReadFile("/proc/net/dev")
+	if err != nil {
+		return netSample{}, err
+	}
+	return parseProcNetDev(string(b)), nil
+}

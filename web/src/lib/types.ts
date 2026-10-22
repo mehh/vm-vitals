@@ -17,6 +17,8 @@ export interface Report {
   oom: { supported: boolean; kills_total: number; recent?: string[] };
   tools: { name: string; path: string; version?: string }[];
   jobs: { name: string; kind: string; pid: number; cpu_pct: number; rss_b: number; elapsed_s: number }[];
+  /** Agent v0.2+. Throughput across non-loopback interfaces since the last tick. */
+  net?: { rx_bps: number; tx_bps: number; rx_total_b: number; tx_total_b: number };
   warnings?: string[];
 }
 
@@ -69,6 +71,8 @@ export interface Sample {
   load1: number | null;
   oom_kills: number | null;
   jobs: number | null;
+  net_rx_bps: number | null;
+  net_tx_bps: number | null;
 }
 
 /** Offline threshold: no report for this long means the machine is down. */

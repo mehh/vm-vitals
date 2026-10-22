@@ -1,24 +1,21 @@
 import type { Alert, Report } from "@/lib/types";
 import { bytes, duration } from "@/lib/format";
-import { Meter, SeverityDot, StatTile } from "./ui";
+import { Meter, SeverityDot } from "./ui";
 
 /** Server-safe view of the latest report. Used by the dashboard and share page. */
-export function ReportView({ report, compact = false }: { report: Report; compact?: boolean }) {
+export function ReportView({ report, alerts, compact = false }: { report: Report; alerts?: Alert[]; compact?: boolean }) {
   const r = report;
-  const root = r.disks.find((d) => d.mount === "/") ?? r.disks[0];
   return (
     <div className="space-y-6">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="CPU" value={`${Math.round(r.cpu.pct)}%`} sub={`${r.cpu.cores} cores · load ${r.load.l1.toFixed(2)} / ${r.load.l5.toFixed(2)} / ${r.load.l15.toFixed(2)}`} pct={r.cpu.pct} color="var(--series-1)" />
-        <StatTile label="Memory" value={`${Math.round(r.mem.pct)}%`} sub={`${bytes(r.mem.used_b)} of ${bytes(r.mem.total_b)}`} pct={r.mem.pct} color="var(--series-2)" />
-        <StatTile label={`Disk ${root?.mount ?? ""}`} value={root ? `${Math.round(root.pct)}%` : "–"} sub={root ? `${bytes(root.used_b)} of ${bytes(root.total_b)} · ${bytes(root.total_b - root.used_b)} free` : "no disks"} pct={root?.pct} color="var(--series-3)" />
-        <StatTile label="Swap" value={r.swap.total_b ? `${Math.round(r.swap.pct)}%` : "none"} sub={r.swap.total_b ? `${bytes(r.swap.used_b)} of ${bytes(r.swap.total_b)}` : "no swap configured"} pct={r.swap.total_b ? r.swap.pct : undefined} color="var(--series-4)" />
-      </div>
-
       <div className={`grid gap-4 ${compact ? "" : "lg:grid-cols-2"}`}>
-        <Card title="Agent jobs running" badge={String(r.jobs.length)}>
+        {alerts && (
+          <Card title="Alerts" badge={String(alerts.filter((a) => !a.resolved_at).length)}>
+            <AlertsList alerts={alerts.slice(0, 12)} />
+          </Card>
+        )}
+        <Card title="Agent jobs awake" badge={String(r.jobs.length)}>
           {r.jobs.length === 0 ? (
-            <Empty>No claude / codex / grok / aider processes right now.</Empty>
+            <Empty>Nobody&apos;s home. No claude, codex, grok or aider process is running. The box is napping.</Empty>
           ) : (
             <ul className="divide-y divide-border">
               {r.jobs.map((j) => (
@@ -49,6 +46,22 @@ export function ReportView({ report, compact = false }: { report: Report; compac
           </ul>
         </Card>
 
+        <Card title="Swap" badge={r.swap.total_b ? `${Math.round(r.swap.pct)}%` : "none"}>
+          {r.swap.total_b ? (
+            <div className="text-sm">
+              <div className="flex items-baseline justify-between">
+                <span className="text-secondary">{bytes(r.swap.used_b)} of {bytes(r.swap.total_b)}</span>
+                <span className="mono text-xs text-muted">load {r.load.l1.toFixed(2)} / {r.load.l5.toFixed(2)} / {r.load.l15.toFixed(2)}</span>
+              </div>
+              <div className="mt-1.5">
+                <Meter pct={r.swap.pct} />
+              </div>
+            </div>
+          ) : (
+            <Empty>No swap configured. Brave. When memory runs out, the OOM killer picks a victim.</Empty>
+          )}
+        </Card>
+
         <Card title="Disks">
           <ul className="space-y-3">
             {r.disks.map((d) => (
@@ -69,9 +82,9 @@ export function ReportView({ report, compact = false }: { report: Report; compac
 
         <Card title="OOM kills" badge={r.oom.supported ? String(r.oom.kills_total) : "n/a"}>
           {!r.oom.supported ? (
-            <Empty>Not available on {r.os === "darwin" ? "macOS" : r.os}. Linux reports the kernel counter.</Empty>
+            <Empty>{r.os === "darwin" ? "macOS" : r.os} keeps its kills to itself. Linux reports the kernel counter.</Empty>
           ) : r.oom.kills_total === 0 ? (
-            <Empty>Zero since boot. The kernel hasn&apos;t had to kill anything.</Empty>
+            <Empty>Zero since boot. The kernel hasn&apos;t had to murder anything. Keep it that way.</Empty>
           ) : (
             <ul className="mono space-y-1 text-xs text-secondary">
               {(r.oom.recent ?? []).map((l, i) => (
@@ -104,7 +117,7 @@ export function ReportView({ report, compact = false }: { report: Report; compac
 
 export function AlertsList({ alerts, onlyOpen = false }: { alerts: Alert[]; onlyOpen?: boolean }) {
   const list = onlyOpen ? alerts.filter((a) => !a.resolved_at) : alerts;
-  if (list.length === 0) return <Empty>No alerts. Disk under 85%, no OOM kills, no dead jobs.</Empty>;
+  if (list.length === 0) return <Empty>Nothing to see. Disk under 85%, no OOM kills, no dead jobs. Suspiciously well behaved.</Empty>;
   return (
     <ul className="divide-y divide-border">
       {list.map((a) => (

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * End-to-end smoke test against a running server (default http://localhost:3000).
- * Simulates: browser mints token -> agent pairs -> agent ingests -> dashboard,
- * alerts, share toggle, public page, OG image, incidents, magic link.
+ * Simulates: browser mints token + bot prompt -> agent pairs -> agent ingests ->
+ * dashboard, alerts, share toggle, public page, OG image, incidents, magic link.
  *
  *   pnpm smoke                 # against localhost:3000
  *   BASE=https://x.vercel.app pnpm smoke
@@ -52,6 +52,7 @@ function report(overrides = {}) {
     oom: { supported: true, kills_total: 0, recent: [] },
     tools: [{ name: "claude", path: "/usr/local/bin/claude", version: "2.1.0 (Claude Code)" }],
     jobs: [{ name: "claude", kind: "Claude Code", pid: 4242, cpu_pct: 12, rss_b: 5e8, elapsed_s: 3600 }],
+    net: { rx_bps: 1234.5, tx_bps: 567.8, rx_total_b: 9e9, tx_total_b: 4e9 },
     ...overrides,
   };
 }
@@ -64,11 +65,22 @@ async function main() {
   const sh = await r.text();
   check("install.sh served", r.ok && sh.includes("install --server"));
 
-  // mint token
+  // homepage offers the bot prompt flow
+  r = await call("/", {}, false);
+  const home = await r.text();
+  check("home offers bot prompt", r.ok && home.includes("Get a prompt for your Grok Bot"));
+  check("home has no leftover install-command CTA", !home.includes("Get my install command"));
+
+  // mint token + prompt
   r = await call("/api/pair-tokens", { method: "POST" });
   const minted = await r.json();
   check("mint pair token", r.ok && minted.token?.startsWith("pair_"), minted.token);
   check("owner cookie set", cookie.includes("vv_owner="));
+  check("prompt addresses Grok Bot", typeof minted.prompt === "string" && minted.prompt.startsWith("Hey Grok Bot,"));
+  check("prompt embeds the install command", minted.prompt.includes(minted.command) && minted.command.includes(minted.token));
+  check("prompt asks for the dashboard link", /dashboard link/i.test(minted.prompt));
+  check("prompt uses this host", minted.host && minted.command.includes(`${minted.host}/install.sh`), minted.host);
+  check("raw command still available", minted.command.startsWith("curl -fsSL ") && minted.sudo_command.includes("| sudo sh -s --"));
 
   // poll before pairing
   r = await call(`/api/pair-tokens/${minted.token}`);
@@ -106,6 +118,10 @@ async function main() {
   r = await call(`/api/machines/${mid}`);
   let snap = await r.json();
   check("dashboard snapshot", r.ok && snap.report?.cpu?.pct === 23.5 && snap.health === "ok", `health=${snap.health}`);
+  check("snapshot keeps network", snap.report?.net?.rx_bps === 1234.5 && snap.report?.net?.tx_bps === 567.8);
+  r = await call(`/m/${mid}`);
+  const dash = await r.text();
+  check("dashboard shows heartbeat + score", r.ok && dash.includes("heartbeat") && dash.includes("score"));
 
   // forbidden without cookie
   r = await call(`/api/machines/${mid}`, {}, false);
@@ -133,6 +149,7 @@ async function main() {
   r = await call(`/api/machines/${mid}/samples?range=1h`);
   const s = await r.json();
   check("samples series", r.ok && Array.isArray(s.samples) && s.samples.length >= 1, `${s.samples?.length} buckets`);
+  check("samples carry network", s.samples.some((x) => typeof x.net_rx_bps === "number" && typeof x.net_tx_bps === "number"));
 
   // share: private by default
   r = await call(`/api/machines/${mid}`);
@@ -147,6 +164,7 @@ async function main() {
   r = await call(`/s/${slug}`, {}, false);
   const html = await r.text();
   check("share page renders", r.ok && html.includes("Smoke Box") && html.includes("og:image"));
+  check("share page has mood + score", html.includes("heartbeat") && /is (thriving|humming along|sweating a bit|wheezing|flatlining)/i.test(html));
   r = await call(`/s/${slug}/opengraph-image`, {}, false);
   const ct = r.headers.get("content-type") ?? "";
   check("OG image renders PNG", r.ok && ct.includes("image/png"), ct);

@@ -37,8 +37,8 @@ export async function POST(req: Request) {
   const rootDisk = report.disks.find((d) => d.mount === "/") ?? report.disks[0];
 
   await q(
-    `INSERT INTO samples (machine_id, at, cpu_pct, mem_pct, disk_pct, swap_pct, load1, mem_used_b, disk_used_b, oom_kills, jobs)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+    `INSERT INTO samples (machine_id, at, cpu_pct, mem_pct, disk_pct, swap_pct, load1, mem_used_b, disk_used_b, oom_kills, jobs, net_rx_bps, net_tx_bps)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
     [
       m.id,
       safeAt,
@@ -51,6 +51,8 @@ export async function POST(req: Request) {
       rootDisk?.used_b ?? null,
       report.oom?.kills_total ?? 0,
       report.jobs.length,
+      report.net?.rx_bps ?? null,
+      report.net?.tx_bps ?? null,
     ],
   );
   await q(
@@ -117,6 +119,9 @@ function sanitize(r: Report): Report {
       rss_b: num(j.rss_b),
       elapsed_s: num(j.elapsed_s),
     })),
+    ...(r.net && typeof r.net === "object"
+      ? { net: { rx_bps: num(r.net.rx_bps), tx_bps: num(r.net.tx_bps), rx_total_b: num(r.net.rx_total_b), tx_total_b: num(r.net.tx_total_b) } }
+      : {}),
     warnings: (r.warnings ?? []).slice(0, 10).map((w) => str(w, 200)),
   };
 }

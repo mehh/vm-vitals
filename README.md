@@ -13,10 +13,11 @@ it".
 Numbers and process names only. Never env vars, never command-line arguments,
 never file contents. `vm-vitals once` prints exactly what gets sent.
 
-## Install (on the machine you want to watch)
+## Install (on the machine your bot lives on)
 
-1. Open the web app, click "Get my install command".
-2. Run it on the box:
+1. Open the web app, click "Get a prompt for your Grok Bot".
+2. Paste the prompt into your bot (Grok Bot, Claude Code, Codex, anything with a shell). It runs the install line and hands back the dashboard link.
+3. Prefer to do it yourself? Open "or run it yourself" under the prompt and run the line on the box:
 
 ```sh
 curl -fsSL https://YOUR-HOST/install.sh | sh -s -- pair_xxxxxxxxxxxxxxxxxxxxxxxx
@@ -57,7 +58,7 @@ Do not modify the command. If it asks for sudo and you don't have it, run it
 without sudo; a user-level service is fine.
 ```
 
-The install card on the homepage renders this snippet with your real token filled in.
+The homepage renders this prompt with your real token filled in. The dashboard shows a health score (0 to 100), a mood, a heartbeat that beats faster when CPU and load climb, live gauges and one-hour sparklines for CPU, memory, disk and network, plus the usual charts.
 
 ## Run it locally
 
@@ -75,9 +76,10 @@ pnpm dev            # http://localhost:3000
 
 # 3. end-to-end check (pairs a fake machine, ingests, flips alerts, renders OG image)
 pnpm smoke
+pnpm test           # unit tests for the bot prompt and health score
 
 # 4. point a real agent at it
-# click "Get my install command" on localhost:3000, then:
+# click "Get a prompt for your Grok Bot" on localhost:3000, open "or run it yourself", then:
 curl -fsSL http://localhost:3000/install.sh | sh -s -- pair_...
 ```
 
@@ -105,6 +107,7 @@ See `/privacy` in the app, or read `agent/internal/collect/`. Short version:
 
 - hostname, OS, arch, kernel, uptime, agent version
 - CPU %, cores, load averages, memory, swap, per-disk usage
+- network bytes per second in and out across non-loopback interfaces (agent v0.2+)
 - top 8 processes (pid, executable name, cpu, mem)
 - OOM kill counter from `/proc/vmstat` and "Killed process N (name)" fragments when the journal is readable (Linux only)
 - which of a fixed list of CLIs are on PATH, and their `--version` first line
@@ -135,8 +138,8 @@ events; they auto-resolve after an hour.
 
 Thirty seconds, 1280×800, dark terminal on the left, browser on the right.
 
-1. (0–4s) Browser on the homepage. Click "Get my install command". Token appears.
-2. (4–10s) Terminal: paste the curl line. Show "Pairing MrKlean with ... Paired. Service installed." Keep the dashboard URL line visible.
+1. (0–4s) Browser on the homepage. Click "Get a prompt for your Grok Bot". The chat bubble appears.
+2. (4–10s) Terminal: paste the prompt into the bot, or the curl line from "or run it yourself". Show "Pairing MrKlean with ... Paired. Service installed." Keep the dashboard URL line visible.
 3. (10–16s) Browser auto-redirects to the dashboard. Stat tiles fill in. Point at "Agent jobs running: Claude Code · 23h".
 4. (16–22s) Toggle "public page". Click "Post on X". Show the X compose with the unfurled card: name, "Needs attention", four bars.
 5. (22–28s) Back on the dashboard, click "+ Log an incident", type "Disk hit 90%, pnpm store prune fixed it", save. It appears in the timeline.

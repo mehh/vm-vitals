@@ -202,3 +202,11 @@ func cstr(b []int8) string {
 	}
 	return string(out)
 }
+
+func readNetSample() (netSample, error) {
+	out, err := run(context.Background(), 3*time.Second, "netstat", "-ib")
+	if err != nil {
+		return netSample{}, err
+	}
+	return parseNetstatIB(out), nil
+}

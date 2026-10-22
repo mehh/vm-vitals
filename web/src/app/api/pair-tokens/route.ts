@@ -3,6 +3,7 @@ import { q } from "@/lib/db";
 import { pairToken } from "@/lib/ids";
 import { getOwnerKey } from "@/lib/auth";
 import { appUrl } from "@/lib/format";
+import { botPrompt, installCommand } from "@/lib/prompt";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,9 @@ export async function POST() {
   const host = appUrl();
   return NextResponse.json({
     token,
-    command: `curl -fsSL ${host}/install.sh | sh -s -- ${token}`,
-    sudo_command: `curl -fsSL ${host}/install.sh | sudo sh -s -- ${token}`,
+    host,
+    command: installCommand(host, token),
+    sudo_command: installCommand(host, token, true),
+    prompt: botPrompt({ host, token }),
   });
 }
